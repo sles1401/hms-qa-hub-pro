@@ -13,6 +13,9 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -48,14 +51,19 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
         sidebar: {
-          DEFAULT: "hsl(var(--sidebar-background))",
-          foreground: "hsl(var(--sidebar-foreground))",
-          primary: "hsl(var(--sidebar-primary))",
-          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
+          DEFAULT: "hsl(var(--sidebar-bg))",
+          foreground: "hsl(var(--sidebar-fg))",
           accent: "hsl(var(--sidebar-accent))",
-          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
+          "accent-foreground": "hsl(var(--sidebar-accent-fg))",
           border: "hsl(var(--sidebar-border))",
-          ring: "hsl(var(--sidebar-ring))",
+          muted: "hsl(var(--sidebar-muted))",
+          hover: "hsl(var(--sidebar-hover))",
+        },
+        stat: {
+          passed: "hsl(var(--stat-passed))",
+          failed: "hsl(var(--stat-failed))",
+          pending: "hsl(var(--stat-pending))",
+          total: "hsl(var(--stat-total))",
         },
       },
       borderRadius: {
