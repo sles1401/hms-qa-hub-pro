@@ -187,7 +187,7 @@ export default function QAHubTab({ questions, onUpdate, qaCategories, onUpdateCa
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map((c) => (
+                  {qaCategories.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
