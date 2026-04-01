@@ -57,9 +57,7 @@ export default function Sidebar({
         {/* Logo */}
         <div className="p-5 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-sidebar-accent flex items-center justify-center">
-              <Shield size={20} className="text-emerald-400" />
-            </div>
+            <img src="/favicon.png" alt="QA Logo" className="w-9 h-9 rounded-lg" />
             <div>
               <h1 className="text-sm font-bold text-sidebar-foreground tracking-wide">HMS QA HUB</h1>
               <p className="text-[10px] text-sidebar-muted">Scalable Web Center</p>
