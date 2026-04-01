@@ -28,9 +28,6 @@ export default function QAHubTab({ questions, onUpdate, qaCategories, onUpdateCa
   const [editId, setEditId] = useState<string | null>(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [newCategory, setNewCategory] = useState("");
-  const [showAsk, setShowAsk] = useState(false);
-  const [showAnswer, setShowAnswer] = useState<string | null>(null);
-  const [editId, setEditId] = useState<string | null>(null);
 
   // Ask form state
   const [category, setCategory] = useState("");
