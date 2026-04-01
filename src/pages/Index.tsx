@@ -57,6 +57,8 @@ export default function Index() {
             <QAHubTab
               questions={config.qaQuestions}
               onUpdate={(qaQuestions) => update({ qaQuestions })}
+              qaCategories={config.qaCategories || []}
+              onUpdateCategories={(qaCategories) => update({ qaCategories })}
             />
           )}
         </div>

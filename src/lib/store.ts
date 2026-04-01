@@ -34,6 +34,7 @@ export interface AppConfig {
   testPlanUrl: string;
   testCaseUrl: string;
   qaQuestions: QAQuestion[];
+  qaCategories: string[];
 }
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -86,6 +87,7 @@ const DEFAULT_CONFIG: AppConfig = {
   testPlanUrl: "",
   testCaseUrl: "",
   qaQuestions: [],
+  qaCategories: [],
 };
 
 const STORAGE_KEY = "hms-qa-hub-config";

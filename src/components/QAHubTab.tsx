@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, MessageSquare, Pencil, Trash2 } from "lucide-react";
+import { Plus, MessageSquare, Pencil, Trash2, X, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,20 +15,19 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { type QAQuestion } from "@/lib/store";
 
-const CATEGORIES = [
-  "Matrix Approval", "Master Data", "Finance", "Operasional",
-  "User Management", "Reporting", "Integration", "Other",
-];
-
 interface Props {
   questions: QAQuestion[];
   onUpdate: (questions: QAQuestion[]) => void;
+  qaCategories: string[];
+  onUpdateCategories: (categories: string[]) => void;
 }
 
-export default function QAHubTab({ questions, onUpdate }: Props) {
+export default function QAHubTab({ questions, onUpdate, qaCategories, onUpdateCategories }: Props) {
   const [showAsk, setShowAsk] = useState(false);
   const [showAnswer, setShowAnswer] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [newCategory, setNewCategory] = useState("");
 
   // Ask form state
   const [category, setCategory] = useState("");
@@ -98,9 +97,14 @@ export default function QAHubTab({ questions, onUpdate }: Props) {
             FAQ & Logic — Diskusi pertanyaan logika antar tim
           </p>
         </div>
-        <Button onClick={() => { resetAskForm(); setShowAsk(true); }} className="gap-2">
-          <Plus size={16} /> Ask Question
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowCategoryManager(true)} className="gap-2">
+            <Tags size={16} /> Kategori
+          </Button>
+          <Button onClick={() => { resetAskForm(); setShowAsk(true); }} className="gap-2">
+            <Plus size={16} /> Ask Question
+          </Button>
+        </div>
       </div>
 
       {questions.length === 0 ? (
@@ -188,7 +192,7 @@ export default function QAHubTab({ questions, onUpdate }: Props) {
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map((c) => (
+                  {qaCategories.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
@@ -236,6 +240,66 @@ export default function QAHubTab({ questions, onUpdate }: Props) {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAnswer(null); resetAnswerForm(); }}>Batal</Button>
             <Button onClick={handleSaveAnswer} disabled={!answer || !answeredBy}>Simpan</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Category Manager Modal */}
+      <Dialog open={showCategoryManager} onOpenChange={setShowCategoryManager}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Kelola Kategori</DialogTitle>
+            <DialogDescription>Tambah atau hapus kategori pertanyaan</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                placeholder="Nama kategori baru..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newCategory.trim()) {
+                    onUpdateCategories([...qaCategories, newCategory.trim()]);
+                    setNewCategory("");
+                  }
+                }}
+              />
+              <Button
+                onClick={() => {
+                  if (newCategory.trim()) {
+                    onUpdateCategories([...qaCategories, newCategory.trim()]);
+                    setNewCategory("");
+                  }
+                }}
+                disabled={!newCategory.trim()}
+              >
+                Tambah
+              </Button>
+            </div>
+            {qaCategories.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Belum ada kategori. Tambahkan kategori pertama Anda.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {qaCategories.map((cat, i) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg border border-border">
+                    <span className="text-sm">{cat}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive h-7 w-7 p-0"
+                      onClick={() => onUpdateCategories(qaCategories.filter((_, idx) => idx !== i))}
+                    >
+                      <X size={14} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCategoryManager(false)}>Tutup</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
