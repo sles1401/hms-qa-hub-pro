@@ -243,6 +243,66 @@ export default function QAHubTab({ questions, onUpdate, qaCategories, onUpdateCa
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Category Manager Modal */}
+      <Dialog open={showCategoryManager} onOpenChange={setShowCategoryManager}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Kelola Kategori</DialogTitle>
+            <DialogDescription>Tambah atau hapus kategori pertanyaan</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                placeholder="Nama kategori baru..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newCategory.trim()) {
+                    onUpdateCategories([...qaCategories, newCategory.trim()]);
+                    setNewCategory("");
+                  }
+                }}
+              />
+              <Button
+                onClick={() => {
+                  if (newCategory.trim()) {
+                    onUpdateCategories([...qaCategories, newCategory.trim()]);
+                    setNewCategory("");
+                  }
+                }}
+                disabled={!newCategory.trim()}
+              >
+                Tambah
+              </Button>
+            </div>
+            {qaCategories.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Belum ada kategori. Tambahkan kategori pertama Anda.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {qaCategories.map((cat, i) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg border border-border">
+                    <span className="text-sm">{cat}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive h-7 w-7 p-0"
+                      onClick={() => onUpdateCategories(qaCategories.filter((_, idx) => idx !== i))}
+                    >
+                      <X size={14} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCategoryManager(false)}>Tutup</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
