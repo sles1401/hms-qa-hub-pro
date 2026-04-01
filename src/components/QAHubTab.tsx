@@ -97,9 +97,14 @@ export default function QAHubTab({ questions, onUpdate, qaCategories, onUpdateCa
             FAQ & Logic — Diskusi pertanyaan logika antar tim
           </p>
         </div>
-        <Button onClick={() => { resetAskForm(); setShowAsk(true); }} className="gap-2">
-          <Plus size={16} /> Ask Question
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowCategoryManager(true)} className="gap-2">
+            <Tags size={16} /> Kategori
+          </Button>
+          <Button onClick={() => { resetAskForm(); setShowAsk(true); }} className="gap-2">
+            <Plus size={16} /> Ask Question
+          </Button>
+        </div>
       </div>
 
       {questions.length === 0 ? (
