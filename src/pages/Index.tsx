@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import DashboardTab from "@/components/DashboardTab";
 import EmbedTab from "@/components/EmbedTab";
+import QAHubTab from "@/components/QAHubTab";
 import ManageModulesModal from "@/components/ManageModulesModal";
 import EditStatsModal from "@/components/EditStatsModal";
 import { loadConfig, saveConfig, type AppConfig } from "@/lib/store";
