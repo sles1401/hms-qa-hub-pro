@@ -85,6 +85,7 @@ const DEFAULT_CONFIG: AppConfig = {
   },
   testPlanUrl: "",
   testCaseUrl: "",
+  qaQuestions: [],
 };
 
 const STORAGE_KEY = "hms-qa-hub-config";

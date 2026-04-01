@@ -53,6 +53,12 @@ export default function Index() {
               type="sheets"
             />
           )}
+          {activeTab === "faq-logic" && (
+            <QAHubTab
+              questions={config.qaQuestions}
+              onUpdate={(qaQuestions) => update({ qaQuestions })}
+            />
+          )}
         </div>
       </main>
 

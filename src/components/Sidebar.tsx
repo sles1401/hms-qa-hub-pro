@@ -31,6 +31,7 @@ export default function Sidebar({
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "test-plan", label: "Strategic Test Plan", icon: FileText },
     { id: "test-case", label: "Test Case Library", icon: Table },
+    { id: "faq-logic", label: "FAQ & Logic", icon: HelpCircle },
   ];
 
   return (
