@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Database, Truck, DollarSign, ChevronDown, ChevronRight,
-  Settings, LayoutDashboard, FileText, Table, Menu, X, Shield,
+  Settings, LayoutDashboard, FileText, Table, Menu, X, Shield, HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Category } from "@/lib/store";
