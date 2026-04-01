@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Database, Truck, DollarSign, ChevronDown, ChevronRight,
-  Settings, LayoutDashboard, FileText, Table, Menu, X, Shield,
+  Settings, LayoutDashboard, FileText, Table, Menu, X, Shield, HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Category } from "@/lib/store";
@@ -31,6 +31,7 @@ export default function Sidebar({
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "test-plan", label: "Strategic Test Plan", icon: FileText },
     { id: "test-case", label: "Test Case Library", icon: Table },
+    { id: "faq-logic", label: "FAQ & Logic", icon: HelpCircle },
   ];
 
   return (

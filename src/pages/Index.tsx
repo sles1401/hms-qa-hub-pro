@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import DashboardTab from "@/components/DashboardTab";
 import EmbedTab from "@/components/EmbedTab";
+import QAHubTab from "@/components/QAHubTab";
 import ManageModulesModal from "@/components/ManageModulesModal";
 import EditStatsModal from "@/components/EditStatsModal";
 import { loadConfig, saveConfig, type AppConfig } from "@/lib/store";
@@ -50,6 +51,12 @@ export default function Index() {
               url={config.testCaseUrl}
               onUpdateUrl={(url) => update({ testCaseUrl: url })}
               type="sheets"
+            />
+          )}
+          {activeTab === "faq-logic" && (
+            <QAHubTab
+              questions={config.qaQuestions}
+              onUpdate={(qaQuestions) => update({ qaQuestions })}
             />
           )}
         </div>

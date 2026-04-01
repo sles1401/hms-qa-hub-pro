@@ -10,6 +10,17 @@ export interface Category {
   submodules: Submodule[];
 }
 
+export interface QAQuestion {
+  id: string;
+  category: string;
+  question: string;
+  directedTo: "Developer" | "UI-UX";
+  answer: string;
+  answeredBy: string;
+  status: "PENDING" | "RESOLVED";
+  createdAt: string;
+}
+
 export interface AppStats {
   totalTC: number;
   passed: number;
@@ -22,6 +33,7 @@ export interface AppConfig {
   stats: AppStats;
   testPlanUrl: string;
   testCaseUrl: string;
+  qaQuestions: QAQuestion[];
 }
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -73,6 +85,7 @@ const DEFAULT_CONFIG: AppConfig = {
   },
   testPlanUrl: "",
   testCaseUrl: "",
+  qaQuestions: [],
 };
 
 const STORAGE_KEY = "hms-qa-hub-config";
