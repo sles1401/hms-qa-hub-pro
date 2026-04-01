@@ -93,7 +93,10 @@ const STORAGE_KEY = "hms-qa-hub-config";
 export function loadConfig(): AppConfig {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return { ...DEFAULT_CONFIG, ...parsed };
+    }
   } catch {}
   return DEFAULT_CONFIG;
 }
