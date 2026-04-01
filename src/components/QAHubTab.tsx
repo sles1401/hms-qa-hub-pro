@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, MessageSquare, Pencil, Trash2 } from "lucide-react";
+import { Plus, MessageSquare, Pencil, Trash2, X, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,17 +15,19 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { type QAQuestion } from "@/lib/store";
 
-const CATEGORIES = [
-  "Matrix Approval", "Master Data", "Finance", "Operasional",
-  "User Management", "Reporting", "Integration", "Other",
-];
-
 interface Props {
   questions: QAQuestion[];
   onUpdate: (questions: QAQuestion[]) => void;
+  qaCategories: string[];
+  onUpdateCategories: (categories: string[]) => void;
 }
 
-export default function QAHubTab({ questions, onUpdate }: Props) {
+export default function QAHubTab({ questions, onUpdate, qaCategories, onUpdateCategories }: Props) {
+  const [showAsk, setShowAsk] = useState(false);
+  const [showAnswer, setShowAnswer] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [newCategory, setNewCategory] = useState("");
   const [showAsk, setShowAsk] = useState(false);
   const [showAnswer, setShowAnswer] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
