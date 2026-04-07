@@ -112,12 +112,18 @@ export default function Sidebar({
                   {isExpanded && (
                     <div className="ml-6 border-l border-sidebar-border pl-3 space-y-0.5 py-1">
                       {cat.submodules.map((sub) => (
-                        <div
+                        <button
                           key={sub.id}
-                          className="text-xs text-sidebar-muted py-1.5 px-2 rounded hover:bg-sidebar-hover hover:text-sidebar-foreground cursor-default transition-colors"
+                          onClick={() => { onSubmoduleClick?.(sub.id, sub.name); if (isOpen) onToggle(); }}
+                          className={cn(
+                            "w-full text-left text-xs py-1.5 px-2 rounded hover:bg-sidebar-hover hover:text-sidebar-foreground transition-colors",
+                            activeSubmodule === sub.id
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                              : "text-sidebar-muted"
+                          )}
                         >
                           {sub.name}
-                        </div>
+                        </button>
                       ))}
                     </div>
                   )}
