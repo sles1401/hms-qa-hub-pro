@@ -17,6 +17,8 @@ interface SidebarProps {
   onManageModules: () => void;
   isOpen: boolean;
   onToggle: () => void;
+  onSubmoduleClick?: (submoduleId: string, submoduleName: string) => void;
+  activeSubmodule?: string | null;
 }
 
 export default function Sidebar({
