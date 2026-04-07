@@ -22,7 +22,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({
-  categories, activeTab, onTabChange, onManageModules, isOpen, onToggle,
+  categories, activeTab, onTabChange, onManageModules, isOpen, onToggle, onSubmoduleClick, activeSubmodule,
 }: SidebarProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ "master-data": true });
 
