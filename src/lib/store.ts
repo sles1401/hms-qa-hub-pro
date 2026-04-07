@@ -138,6 +138,7 @@ export function loadConfig(): AppConfig {
         testCaseUrl: parsed.testCaseUrl ?? DEFAULT_CONFIG.testCaseUrl,
         qaQuestions: parsed.qaQuestions ?? DEFAULT_CONFIG.qaQuestions,
         qaCategories: parsed.qaCategories ?? DEFAULT_CONFIG.qaCategories,
+        submoduleStats: parsed.submoduleStats ?? DEFAULT_CONFIG.submoduleStats,
       };
     }
   } catch {}
