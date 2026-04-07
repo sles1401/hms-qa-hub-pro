@@ -122,6 +122,7 @@ const DEFAULT_CONFIG: AppConfig = {
   qaQuestions: [],
   qaCategories: [],
   submoduleStats: {},
+};
 
 const STORAGE_KEY = "hms-qa-hub-config";
 
