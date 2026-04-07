@@ -21,6 +21,23 @@ export interface QAQuestion {
   createdAt: string;
 }
 
+export interface TestClassification {
+  positive: number;
+  negative: number;
+  edgeCase: number;
+  integrationTest: number;
+  uiUxCheck: number;
+  securityRole: number;
+}
+
+export interface SubmoduleStats {
+  totalTC: number;
+  passed: number;
+  failed: number;
+  pending: number;
+  classification: TestClassification;
+}
+
 export interface AppStats {
   totalTC: number;
   passed: number;
