@@ -97,7 +97,15 @@ export function loadConfig(): AppConfig {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      return { ...DEFAULT_CONFIG, ...parsed };
+      // Ensure all keys exist with defaults, but stored values always win
+      return {
+        categories: parsed.categories ?? DEFAULT_CONFIG.categories,
+        stats: parsed.stats ?? DEFAULT_CONFIG.stats,
+        testPlanUrl: parsed.testPlanUrl ?? DEFAULT_CONFIG.testPlanUrl,
+        testCaseUrl: parsed.testCaseUrl ?? DEFAULT_CONFIG.testCaseUrl,
+        qaQuestions: parsed.qaQuestions ?? DEFAULT_CONFIG.qaQuestions,
+        qaCategories: parsed.qaCategories ?? DEFAULT_CONFIG.qaCategories,
+      };
     }
   } catch {}
   return DEFAULT_CONFIG;

@@ -20,14 +20,19 @@ export default function EmbedTab({ title, description, url, onUpdateUrl, type }:
 
   const Icon = type === "docs" ? FileText : Table;
 
-  // Convert Google Drive URL to embeddable
+  // Convert Google Drive URL to embeddable preview format
   const getEmbedUrl = (rawUrl: string) => {
     if (!rawUrl) return "";
-    if (rawUrl.includes("/pub")) return rawUrl;
-    if (rawUrl.includes("/edit")) return rawUrl.replace("/edit", "/pub");
-    if (rawUrl.includes("docs.google.com") || rawUrl.includes("sheets.google.com")) {
-      return rawUrl;
+    // Extract document ID and build preview URL
+    const match = rawUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (match) {
+      const docId = match[1];
+      if (type === "docs") {
+        return `https://docs.google.com/document/d/${docId}/preview`;
+      }
+      return `https://docs.google.com/spreadsheets/d/${docId}/preview`;
     }
+    // Fallback: if already a preview/pub URL, use as-is
     return rawUrl;
   };
 
