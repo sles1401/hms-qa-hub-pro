@@ -52,7 +52,23 @@ export interface AppConfig {
   testCaseUrl: string;
   qaQuestions: QAQuestion[];
   qaCategories: string[];
+  submoduleStats: Record<string, SubmoduleStats>;
 }
+
+export const DEFAULT_SUBMODULE_STATS: SubmoduleStats = {
+  totalTC: 0,
+  passed: 0,
+  failed: 0,
+  pending: 0,
+  classification: {
+    positive: 0,
+    negative: 0,
+    edgeCase: 0,
+    integrationTest: 0,
+    uiUxCheck: 0,
+    securityRole: 0,
+  },
+};
 
 const DEFAULT_CONFIG: AppConfig = {
   categories: [
