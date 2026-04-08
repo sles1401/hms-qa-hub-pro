@@ -34,9 +34,9 @@ const ALLOWED_TYPES = [
 ];
 
 function getFileIcon(type: string) {
-  if (type.includes("word") || type.includes("document")) return <FileText size={20} className="text-blue-500" />;
-  if (type.includes("sheet") || type.includes("excel")) return <FileSpreadsheet size={20} className="text-green-500" />;
-  if (type.includes("pdf")) return <FileText size={20} className="text-red-500" />;
+  if (type.includes("word") || type.includes("document")) return <FileText size={20} className="text-primary" />;
+  if (type.includes("sheet") || type.includes("excel")) return <FileSpreadsheet size={20} className="text-accent" />;
+  if (type.includes("pdf")) return <FileText size={20} className="text-destructive" />;
   return <File size={20} className="text-muted-foreground" />;
 }
 
