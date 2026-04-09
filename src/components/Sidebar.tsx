@@ -1,13 +1,13 @@
 import { useState } from "react";
 import {
-  Database, Truck, DollarSign, ChevronDown, ChevronRight,
-  Settings, LayoutDashboard, FileText, Table, Menu, X, Shield, HelpCircle,
+  Database, Truck, ChevronDown, ChevronRight,
+  Settings, LayoutDashboard, FileText, Table, Menu, X, HelpCircle, Bug, BookOpen, Rocket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Category } from "@/lib/store";
 
 const ICON_MAP: Record<string, React.ElementType> = {
-  Database, Truck, DollarSign, Settings, Shield,
+  Database, Truck, Settings,
 };
 
 interface SidebarProps {
@@ -33,7 +33,10 @@ export default function Sidebar({
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "test-plan", label: "Strategic Test Plan", icon: FileText },
     { id: "test-case", label: "Test Case Library", icon: Table },
+    { id: "defect-tracker", label: "Defect Tracker", icon: Bug },
     { id: "faq-logic", label: "FAQ & Logic", icon: HelpCircle },
+    { id: "daily-journal", label: "Daily Journal", icon: BookOpen },
+    { id: "release-notes", label: "Release Notes", icon: Rocket },
   ];
 
   return (
@@ -60,7 +63,9 @@ export default function Sidebar({
         {/* Logo */}
         <div className="p-5 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <img src="/favicon.png" alt="QA Logo" className="w-9 h-9 rounded-lg" />
+            <div className="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center">
+              <span className="text-white font-extrabold text-sm">QA</span>
+            </div>
             <div>
               <h1 className="text-sm font-bold text-sidebar-foreground tracking-wide">HMS QA HUB</h1>
               <p className="text-[10px] text-sidebar-muted">Scalable Web Center</p>

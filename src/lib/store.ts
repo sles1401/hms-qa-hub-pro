@@ -45,14 +45,37 @@ export interface AppStats {
   pending: number;
 }
 
+export interface JournalEntry {
+  id: string;
+  date: string;
+  taskCompleted: string;
+  blockers: string;
+  nextPlan: string;
+  createdAt: string;
+}
+
+export interface ReleaseNote {
+  id: string;
+  version: string;
+  releaseDate: string;
+  features: string;
+  bugFixes: string;
+  knownIssues: string;
+  createdAt: string;
+}
+
 export interface AppConfig {
   categories: Category[];
   stats: AppStats;
   testPlanUrl: string;
   testCaseUrl: string;
+  defectTrackerUrl: string;
   qaQuestions: QAQuestion[];
   qaCategories: string[];
   submoduleStats: Record<string, SubmoduleStats>;
+  insightText: string;
+  journalEntries: JournalEntry[];
+  releaseNotes: ReleaseNote[];
 }
 
 export const DEFAULT_SUBMODULE_STATS: SubmoduleStats = {
@@ -92,22 +115,13 @@ const DEFAULT_CONFIG: AppConfig = {
       ],
     },
     {
-      id: "operasional",
-      name: "Operasional",
+      id: "hauling",
+      name: "Hauling Management",
       icon: "Truck",
       submodules: [
         { id: "ritase", name: "Ritase" },
         { id: "delivery-order", name: "Delivery Order" },
         { id: "manifest", name: "Manifest" },
-      ],
-    },
-    {
-      id: "finance",
-      name: "Finance",
-      icon: "DollarSign",
-      submodules: [
-        { id: "invoice", name: "Invoice" },
-        { id: "payment", name: "Payment" },
       ],
     },
   ],
@@ -119,9 +133,13 @@ const DEFAULT_CONFIG: AppConfig = {
   },
   testPlanUrl: "",
   testCaseUrl: "",
+  defectTrackerUrl: "",
   qaQuestions: [],
   qaCategories: [],
   submoduleStats: {},
+  insightText: "Good testing is not about finding bugs. It's about delivering confidence in every release.",
+  journalEntries: [],
+  releaseNotes: [],
 };
 
 const STORAGE_KEY = "hms-qa-hub-config";
@@ -131,15 +149,18 @@ export function loadConfig(): AppConfig {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      // Ensure all keys exist with defaults, but stored values always win
       return {
         categories: parsed.categories ?? DEFAULT_CONFIG.categories,
         stats: parsed.stats ?? DEFAULT_CONFIG.stats,
         testPlanUrl: parsed.testPlanUrl ?? DEFAULT_CONFIG.testPlanUrl,
         testCaseUrl: parsed.testCaseUrl ?? DEFAULT_CONFIG.testCaseUrl,
+        defectTrackerUrl: parsed.defectTrackerUrl ?? DEFAULT_CONFIG.defectTrackerUrl,
         qaQuestions: parsed.qaQuestions ?? DEFAULT_CONFIG.qaQuestions,
         qaCategories: parsed.qaCategories ?? DEFAULT_CONFIG.qaCategories,
         submoduleStats: parsed.submoduleStats ?? DEFAULT_CONFIG.submoduleStats,
+        insightText: parsed.insightText ?? DEFAULT_CONFIG.insightText,
+        journalEntries: parsed.journalEntries ?? DEFAULT_CONFIG.journalEntries,
+        releaseNotes: parsed.releaseNotes ?? DEFAULT_CONFIG.releaseNotes,
       };
     }
   } catch {}

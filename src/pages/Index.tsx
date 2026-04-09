@@ -6,6 +6,9 @@ import QAHubTab from "@/components/QAHubTab";
 import SubmoduleDetailTab from "@/components/SubmoduleDetailTab";
 import ManageModulesModal from "@/components/ManageModulesModal";
 import EditStatsModal from "@/components/EditStatsModal";
+import DefectTrackerTab from "@/components/DefectTrackerTab";
+import DailyJournalTab from "@/components/DailyJournalTab";
+import ReleaseNotesTab from "@/components/ReleaseNotesTab";
 import { loadConfig, saveConfig, DEFAULT_SUBMODULE_STATS, type AppConfig, type SubmoduleStats } from "@/lib/store";
 
 export default function Index() {
@@ -61,7 +64,12 @@ export default function Index() {
       <main className="flex-1 overflow-y-auto">
         <div className="p-6 md:p-8 max-w-6xl mx-auto">
           {activeTab === "dashboard" && (
-            <DashboardTab stats={config.stats} onEditStats={() => setShowStats(true)} />
+            <DashboardTab
+              stats={config.stats}
+              onEditStats={() => setShowStats(true)}
+              insightText={config.insightText}
+              onUpdateInsight={(insightText) => update({ insightText })}
+            />
           )}
           {activeTab === "test-plan" && (
             <EmbedTab
@@ -81,12 +89,30 @@ export default function Index() {
               type="sheets"
             />
           )}
+          {activeTab === "defect-tracker" && (
+            <DefectTrackerTab
+              url={config.defectTrackerUrl}
+              onUpdateUrl={(url) => update({ defectTrackerUrl: url })}
+            />
+          )}
           {activeTab === "faq-logic" && (
             <QAHubTab
               questions={config.qaQuestions}
               onUpdate={(qaQuestions) => update({ qaQuestions })}
               qaCategories={config.qaCategories || []}
               onUpdateCategories={(qaCategories) => update({ qaCategories })}
+            />
+          )}
+          {activeTab === "daily-journal" && (
+            <DailyJournalTab
+              entries={config.journalEntries}
+              onUpdate={(journalEntries) => update({ journalEntries })}
+            />
+          )}
+          {activeTab === "release-notes" && (
+            <ReleaseNotesTab
+              notes={config.releaseNotes}
+              onUpdate={(releaseNotes) => update({ releaseNotes })}
             />
           )}
           {activeTab === "submodule" && activeSubmodule && (
