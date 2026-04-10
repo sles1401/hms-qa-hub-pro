@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Database, Truck, ChevronDown, ChevronRight,
   Settings, LayoutDashboard, FileText, Table, Menu, X, HelpCircle, Bug, BookOpen, Rocket,
+  Sun, Moon, Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { type Category } from "@/lib/store";
+import { type Category, loadConfig } from "@/lib/store";
+import { Switch } from "@/components/ui/switch";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Database, Truck, Settings,
@@ -19,6 +21,37 @@ interface SidebarProps {
   onToggle: () => void;
   onSubmoduleClick?: (submoduleId: string, submoduleName: string) => void;
   activeSubmodule?: string | null;
+}
+
+function DarkModeToggle() {
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+
+  useEffect(() => {
+    if (dark) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  }, [dark]);
+
+  // Initialize from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark") {
+      setDark(true);
+    }
+  }, []);
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-2">
+      <Sun size={14} className="text-sidebar-muted" />
+      <Switch checked={dark} onCheckedChange={setDark} />
+      <Moon size={14} className="text-sidebar-muted" />
+      <span className="text-xs text-sidebar-muted ml-1">{dark ? "Dark" : "Light"}</span>
+    </div>
+  );
 }
 
 export default function Sidebar({
@@ -139,7 +172,7 @@ export default function Sidebar({
         </nav>
 
         {/* Manage Modules */}
-        <div className="p-3 border-t border-sidebar-border">
+        <div className="p-3 border-t border-sidebar-border space-y-1">
           <button
             onClick={onManageModules}
             className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground transition-colors"
@@ -147,6 +180,27 @@ export default function Sidebar({
             <Settings size={16} />
             Manage Modules
           </button>
+          <button
+            onClick={() => {
+              const data = loadConfig();
+              const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `hms-qa-backup-${new Date().toISOString().slice(0, 10)}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground transition-colors"
+          >
+            <Download size={16} />
+            Export Backup (JSON)
+          </button>
+        </div>
+
+        {/* Dark Mode Toggle */}
+        <div className="p-3 border-t border-sidebar-border">
+          <DarkModeToggle />
         </div>
 
         {/* Footer */}
