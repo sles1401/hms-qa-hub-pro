@@ -23,6 +23,37 @@ interface SidebarProps {
   activeSubmodule?: string | null;
 }
 
+function DarkModeToggle() {
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+
+  useEffect(() => {
+    if (dark) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  }, [dark]);
+
+  // Initialize from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark") {
+      setDark(true);
+    }
+  }, []);
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-2">
+      <Sun size={14} className="text-sidebar-muted" />
+      <Switch checked={dark} onCheckedChange={setDark} />
+      <Moon size={14} className="text-sidebar-muted" />
+      <span className="text-xs text-sidebar-muted ml-1">{dark ? "Dark" : "Light"}</span>
+    </div>
+  );
+}
+
 export default function Sidebar({
   categories, activeTab, onTabChange, onManageModules, isOpen, onToggle, onSubmoduleClick, activeSubmodule,
 }: SidebarProps) {
