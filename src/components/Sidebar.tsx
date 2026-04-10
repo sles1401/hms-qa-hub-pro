@@ -57,7 +57,12 @@ function DarkModeToggle() {
 }
 
 export default function Sidebar({
-  categories, activeTab, onTabChange, onManageModules, isOpen, onToggle, onSubmoduleClick, activeSubmodule,
+  categories, activeTab, onTabChange, onManageModules, isOpen, onToggle, onSubmoduleClick, activeSubmodule, projectTitle, onUpdateTitle,
+}: SidebarProps) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({ "master-data": true });
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(projectTitle);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 }: SidebarProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ "master-data": true });
 
@@ -98,11 +103,49 @@ export default function Sidebar({
         {/* Logo */}
         <div className="p-5 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center shrink-0">
               <span className="text-white font-extrabold text-sm">QA</span>
             </div>
-            <div>
-              <h1 className="text-sm font-bold text-sidebar-foreground tracking-wide">HMS QA HUB</h1>
+            <div className="flex-1 min-w-0">
+              {editingTitle ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    ref={titleInputRef}
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        onUpdateTitle(titleDraft.trim() || projectTitle);
+                        setEditingTitle(false);
+                      } else if (e.key === "Escape") {
+                        setTitleDraft(projectTitle);
+                        setEditingTitle(false);
+                      }
+                    }}
+                    className="text-sm font-bold text-sidebar-foreground tracking-wide bg-transparent border-b border-emerald-400 outline-none w-full"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => {
+                      onUpdateTitle(titleDraft.trim() || projectTitle);
+                      setEditingTitle(false);
+                    }}
+                    className="text-emerald-400 hover:text-emerald-300"
+                  >
+                    <Check size={14} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 group">
+                  <h1 className="text-sm font-bold text-sidebar-foreground tracking-wide truncate">{projectTitle}</h1>
+                  <button
+                    onClick={() => { setTitleDraft(projectTitle); setEditingTitle(true); }}
+                    className="opacity-0 group-hover:opacity-100 text-sidebar-muted hover:text-emerald-400 transition-opacity"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                </div>
+              )}
               <p className="text-[10px] text-sidebar-muted">Scalable Web Center</p>
             </div>
           </div>
