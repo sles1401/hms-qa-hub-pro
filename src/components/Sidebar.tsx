@@ -63,8 +63,8 @@ export default function Sidebar({
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(projectTitle);
   const titleInputRef = useRef<HTMLInputElement>(null);
-}: SidebarProps) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({ "master-data": true });
+
+
 
   const toggle = (id: string) =>
     setExpanded((p) => ({ ...p, [id]: !p[id] }));
