@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Database, Truck, ChevronDown, ChevronRight,
   Settings, LayoutDashboard, FileText, Table, Menu, X, HelpCircle, Bug, BookOpen, Rocket,
-  Sun, Moon, Download,
+  Sun, Moon, Download, Pencil, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Category, loadConfig } from "@/lib/store";
@@ -21,6 +21,8 @@ interface SidebarProps {
   onToggle: () => void;
   onSubmoduleClick?: (submoduleId: string, submoduleName: string) => void;
   activeSubmodule?: string | null;
+  projectTitle: string;
+  onUpdateTitle: (title: string) => void;
 }
 
 function DarkModeToggle() {
