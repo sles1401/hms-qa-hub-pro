@@ -65,6 +65,7 @@ export interface ReleaseNote {
 }
 
 export interface AppConfig {
+  projectTitle: string;
   categories: Category[];
   stats: AppStats;
   testPlanUrl: string;
