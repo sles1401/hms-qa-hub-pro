@@ -59,6 +59,8 @@ export default function Index() {
         onToggle={() => setSidebarOpen((p) => !p)}
         onSubmoduleClick={handleSubmoduleClick}
         activeSubmodule={activeSubmodule?.id}
+        projectTitle={config.projectTitle}
+        onUpdateTitle={(projectTitle) => update({ projectTitle })}
       />
 
       <main className="flex-1 overflow-y-auto">
