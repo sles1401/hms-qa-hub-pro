@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import {
   Database, Truck, ChevronDown, ChevronRight,
   Settings, LayoutDashboard, FileText, Table, Menu, X, HelpCircle, Bug, BookOpen, Rocket,
-  Sun, Moon, Download, Pencil, Check,
+  Sun, Moon, Download, Pencil, Check, Plus, Trash2, FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { type Category, loadConfig } from "@/lib/store";
+import { type Category, type ProjectEntry, loadConfig, getProjects, getActiveProjectId, createProject, deleteProject } from "@/lib/store";
 import { Switch } from "@/components/ui/switch";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -23,6 +23,7 @@ interface SidebarProps {
   activeSubmodule?: string | null;
   projectTitle: string;
   onUpdateTitle: (title: string) => void;
+  onSwitchProject: (projectId: string) => void;
 }
 
 function DarkModeToggle() {
@@ -38,7 +39,6 @@ function DarkModeToggle() {
     }
   }, [dark]);
 
-  // Initialize from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem("theme");
     if (saved === "dark") {
@@ -56,15 +56,132 @@ function DarkModeToggle() {
   );
 }
 
+function ProjectSwitcher({ currentProjectId, onSwitch }: { currentProjectId: string; onSwitch: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [projects, setProjects] = useState<ProjectEntry[]>(getProjects);
+  const [newName, setNewName] = useState("");
+  const [showNew, setShowNew] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const refresh = () => setProjects(getProjects());
+
+  useEffect(() => {
+    refresh();
+  }, [currentProjectId]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleCreate = () => {
+    const name = newName.trim() || `Project ${projects.length + 1}`;
+    const id = createProject(name);
+    setNewName("");
+    setShowNew(false);
+    refresh();
+    onSwitch(id);
+  };
+
+  const handleDelete = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (projects.length <= 1) return;
+    if (!confirm("Hapus project ini? Data akan hilang permanen.")) return;
+    deleteProject(id);
+    refresh();
+    if (id === currentProjectId) {
+      const remaining = getProjects();
+      onSwitch(remaining[0].id);
+    }
+  };
+
+  const current = projects.find((p) => p.id === currentProjectId);
+
+  return (
+    <div ref={ref} className="relative px-3 py-2 border-b border-sidebar-border">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground transition-colors"
+      >
+        <FolderOpen size={14} />
+        <span className="flex-1 text-left truncate">{current?.name || "Select Project"}</span>
+        <ChevronDown size={12} className={cn("transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="absolute left-2 right-2 top-full mt-1 z-50 bg-sidebar-accent border border-sidebar-border rounded-lg shadow-xl overflow-hidden">
+          <div className="max-h-48 overflow-y-auto py-1">
+            {projects.map((p) => (
+              <div
+                key={p.id}
+                onClick={() => { onSwitch(p.id); setOpen(false); }}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-colors",
+                  p.id === currentProjectId
+                    ? "bg-emerald-500/20 text-sidebar-foreground font-medium"
+                    : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground"
+                )}
+              >
+                <span className="flex-1 truncate">{p.name}</span>
+                {projects.length > 1 && (
+                  <button
+                    onClick={(e) => handleDelete(p.id, e)}
+                    className="opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity shrink-0"
+                    style={{ opacity: p.id === currentProjectId ? 0.3 : undefined }}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="border-t border-sidebar-border p-2">
+            {showNew ? (
+              <div className="flex items-center gap-1">
+                <input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                  placeholder="Nama project..."
+                  className="flex-1 text-xs bg-transparent border-b border-emerald-400 text-sidebar-foreground outline-none px-1 py-0.5"
+                  autoFocus
+                />
+                <button onClick={handleCreate} className="text-emerald-400 hover:text-emerald-300">
+                  <Check size={14} />
+                </button>
+                <button onClick={() => { setShowNew(false); setNewName(""); }} className="text-sidebar-muted hover:text-sidebar-foreground">
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowNew(true)}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs text-emerald-400 hover:bg-sidebar-hover transition-colors"
+              >
+                <Plus size={14} />
+                New Project
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Sidebar({
-  categories, activeTab, onTabChange, onManageModules, isOpen, onToggle, onSubmoduleClick, activeSubmodule, projectTitle, onUpdateTitle,
+  categories, activeTab, onTabChange, onManageModules, isOpen, onToggle, onSubmoduleClick, activeSubmodule, projectTitle, onUpdateTitle, onSwitchProject,
 }: SidebarProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ "master-data": true });
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(projectTitle);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
-
+  useEffect(() => { setTitleDraft(projectTitle); }, [projectTitle]);
 
   const toggle = (id: string) =>
     setExpanded((p) => ({ ...p, [id]: !p[id] }));
@@ -100,7 +217,7 @@ export default function Sidebar({
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >
-        {/* Logo */}
+        {/* Logo & Title */}
         <div className="p-5 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center shrink-0">
@@ -150,6 +267,9 @@ export default function Sidebar({
             </div>
           </div>
         </div>
+
+        {/* Project Switcher */}
+        <ProjectSwitcher currentProjectId={getActiveProjectId()} onSwitch={onSwitchProject} />
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
@@ -232,7 +352,7 @@ export default function Sidebar({
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a");
               a.href = url;
-              a.download = `hms-qa-backup-${new Date().toISOString().slice(0, 10)}.json`;
+              a.download = `qa-backup-${new Date().toISOString().slice(0, 10)}.json`;
               a.click();
               URL.revokeObjectURL(url);
             }}

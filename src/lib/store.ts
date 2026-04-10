@@ -79,6 +79,11 @@ export interface AppConfig {
   releaseNotes: ReleaseNote[];
 }
 
+export interface ProjectEntry {
+  id: string;
+  name: string;
+}
+
 export const DEFAULT_SUBMODULE_STATS: SubmoduleStats = {
   totalTC: 0,
   passed: 0,
@@ -95,7 +100,7 @@ export const DEFAULT_SUBMODULE_STATS: SubmoduleStats = {
 };
 
 const DEFAULT_CONFIG: AppConfig = {
-  projectTitle: "HMS QA HUB",
+  projectTitle: "New Project",
   categories: [
     {
       id: "master-data",
@@ -128,10 +133,10 @@ const DEFAULT_CONFIG: AppConfig = {
     },
   ],
   stats: {
-    totalTC: 1853,
-    passed: 1555,
-    failed: 1,
-    pending: 297,
+    totalTC: 0,
+    passed: 0,
+    failed: 0,
+    pending: 0,
   },
   testPlanUrl: "",
   testCaseUrl: "",
@@ -144,11 +149,103 @@ const DEFAULT_CONFIG: AppConfig = {
   releaseNotes: [],
 };
 
-const STORAGE_KEY = "hms-qa-hub-config";
+const PROJECTS_KEY = "hms-qa-projects";
+const ACTIVE_PROJECT_KEY = "hms-qa-active-project";
 
-export function loadConfig(): AppConfig {
+function projectStorageKey(projectId: string) {
+  return `hms-qa-hub-config-${projectId}`;
+}
+
+// Migration: move old single-project data to multi-project format
+function migrateIfNeeded() {
+  const oldKey = "hms-qa-hub-config";
+  const existing = localStorage.getItem(PROJECTS_KEY);
+  if (!existing) {
+    const oldData = localStorage.getItem(oldKey);
+    const defaultId = "project-1";
+    let projectName = "HMS QA HUB";
+
+    if (oldData) {
+      try {
+        const parsed = JSON.parse(oldData);
+        projectName = parsed.projectTitle || projectName;
+      } catch {}
+      localStorage.setItem(projectStorageKey(defaultId), oldData);
+      localStorage.removeItem(oldKey);
+    }
+
+    const projects: ProjectEntry[] = [{ id: defaultId, name: projectName }];
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+    localStorage.setItem(ACTIVE_PROJECT_KEY, defaultId);
+  }
+}
+
+export function getProjects(): ProjectEntry[] {
+  migrateIfNeeded();
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(PROJECTS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveProjects(projects: ProjectEntry[]) {
+  localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+}
+
+export function getActiveProjectId(): string {
+  migrateIfNeeded();
+  return localStorage.getItem(ACTIVE_PROJECT_KEY) || getProjects()[0]?.id || "project-1";
+}
+
+export function setActiveProjectId(id: string) {
+  localStorage.setItem(ACTIVE_PROJECT_KEY, id);
+}
+
+export function createProject(name: string): string {
+  const projects = getProjects();
+  const id = `project-${Date.now()}`;
+  projects.push({ id, name });
+  saveProjects(projects);
+
+  const newConfig: AppConfig = { ...DEFAULT_CONFIG, projectTitle: name };
+  localStorage.setItem(projectStorageKey(id), JSON.stringify(newConfig));
+  setActiveProjectId(id);
+  return id;
+}
+
+export function deleteProject(id: string) {
+  let projects = getProjects().filter((p) => p.id !== id);
+  localStorage.removeItem(projectStorageKey(id));
+
+  if (projects.length === 0) {
+    const fallbackId = `project-${Date.now()}`;
+    projects = [{ id: fallbackId, name: "New Project" }];
+    localStorage.setItem(projectStorageKey(fallbackId), JSON.stringify(DEFAULT_CONFIG));
+  }
+
+  saveProjects(projects);
+
+  if (getActiveProjectId() === id) {
+    setActiveProjectId(projects[0].id);
+  }
+}
+
+export function renameProject(id: string, name: string) {
+  const projects = getProjects();
+  const p = projects.find((p) => p.id === id);
+  if (p) {
+    p.name = name;
+    saveProjects(projects);
+  }
+}
+
+export function loadConfig(projectId?: string): AppConfig {
+  migrateIfNeeded();
+  const id = projectId || getActiveProjectId();
+  try {
+    const stored = localStorage.getItem(projectStorageKey(id));
     if (stored) {
       const parsed = JSON.parse(stored);
       return {
@@ -167,14 +264,24 @@ export function loadConfig(): AppConfig {
       };
     }
   } catch {}
-  return DEFAULT_CONFIG;
+  return { ...DEFAULT_CONFIG };
 }
 
-export function saveConfig(config: AppConfig) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+export function saveConfig(config: AppConfig, projectId?: string) {
+  const id = projectId || getActiveProjectId();
+  localStorage.setItem(projectStorageKey(id), JSON.stringify(config));
+
+  // Also sync project name in the project list
+  const projects = getProjects();
+  const p = projects.find((p) => p.id === id);
+  if (p && p.name !== config.projectTitle) {
+    p.name = config.projectTitle;
+    saveProjects(projects);
+  }
 }
 
 export function resetConfig(): AppConfig {
-  localStorage.removeItem(STORAGE_KEY);
-  return DEFAULT_CONFIG;
+  const id = getActiveProjectId();
+  localStorage.removeItem(projectStorageKey(id));
+  return { ...DEFAULT_CONFIG };
 }

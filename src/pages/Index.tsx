@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import DashboardTab from "@/components/DashboardTab";
 import EmbedTab from "@/components/EmbedTab";
@@ -9,20 +9,31 @@ import EditStatsModal from "@/components/EditStatsModal";
 import DefectTrackerTab from "@/components/DefectTrackerTab";
 import DailyJournalTab from "@/components/DailyJournalTab";
 import ReleaseNotesTab from "@/components/ReleaseNotesTab";
-import { loadConfig, saveConfig, DEFAULT_SUBMODULE_STATS, type AppConfig, type SubmoduleStats } from "@/lib/store";
+import { loadConfig, saveConfig, setActiveProjectId, getActiveProjectId, DEFAULT_SUBMODULE_STATS, type AppConfig, type SubmoduleStats } from "@/lib/store";
 
 export default function Index() {
-  const [config, setConfig] = useState<AppConfig>(loadConfig);
+  const [projectId, setProjectId] = useState(getActiveProjectId);
+  const [config, setConfig] = useState<AppConfig>(() => loadConfig(projectId));
   const [activeTab, setActiveTab] = useState("dashboard");
   const [showModules, setShowModules] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSubmodule, setActiveSubmodule] = useState<{ id: string; name: string } | null>(null);
 
-  useEffect(() => { saveConfig(config); }, [config]);
+  useEffect(() => { saveConfig(config, projectId); }, [config, projectId]);
 
   const update = (partial: Partial<AppConfig>) =>
     setConfig((prev) => ({ ...prev, ...partial }));
+
+  const handleSwitchProject = useCallback((newId: string) => {
+    // Save current first
+    saveConfig(config, projectId);
+    setActiveProjectId(newId);
+    setProjectId(newId);
+    setConfig(loadConfig(newId));
+    setActiveTab("dashboard");
+    setActiveSubmodule(null);
+  }, [config, projectId]);
 
   const handleSubmoduleClick = (id: string, name: string) => {
     setActiveTab("submodule");
@@ -61,6 +72,7 @@ export default function Index() {
         activeSubmodule={activeSubmodule?.id}
         projectTitle={config.projectTitle}
         onUpdateTitle={(projectTitle) => update({ projectTitle })}
+        onSwitchProject={handleSwitchProject}
       />
 
       <main className="flex-1 overflow-y-auto">
