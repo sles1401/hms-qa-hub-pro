@@ -95,6 +95,7 @@ export const DEFAULT_SUBMODULE_STATS: SubmoduleStats = {
 };
 
 const DEFAULT_CONFIG: AppConfig = {
+  projectTitle: "HMS QA HUB",
   categories: [
     {
       id: "master-data",
@@ -151,6 +152,7 @@ export function loadConfig(): AppConfig {
     if (stored) {
       const parsed = JSON.parse(stored);
       return {
+        projectTitle: parsed.projectTitle ?? DEFAULT_CONFIG.projectTitle,
         categories: parsed.categories ?? DEFAULT_CONFIG.categories,
         stats: parsed.stats ?? DEFAULT_CONFIG.stats,
         testPlanUrl: parsed.testPlanUrl ?? DEFAULT_CONFIG.testPlanUrl,
