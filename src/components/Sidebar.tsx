@@ -208,6 +208,7 @@ export default function Sidebar({
     { id: "faq-logic", label: "FAQ & Logic", icon: HelpCircle },
     { id: "daily-journal", label: "Daily Journal", icon: BookOpen },
     { id: "release-notes", label: "Release Notes", icon: Rocket },
+    { id: "template-library", label: "Template Library", icon: FileText },
   ];
 
   return (

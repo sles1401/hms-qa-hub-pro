@@ -9,6 +9,7 @@ import EditStatsModal from "@/components/EditStatsModal";
 import DefectTrackerTab from "@/components/DefectTrackerTab";
 import DailyJournalTab from "@/components/DailyJournalTab";
 import ReleaseNotesTab from "@/components/ReleaseNotesTab";
+import TemplateLibraryTab from "@/components/TemplateLibraryTab";
 import { loadConfig, saveConfig, setActiveProjectId, getActiveProjectId, DEFAULT_SUBMODULE_STATS, type AppConfig, type SubmoduleStats } from "@/lib/store";
 
 export default function Index() {
@@ -127,6 +128,14 @@ export default function Index() {
             <ReleaseNotesTab
               notes={config.releaseNotes}
               onUpdate={(releaseNotes) => update({ releaseNotes })}
+            />
+          )}
+          {activeTab === "template-library" && (
+            <TemplateLibraryTab
+              templateUrls={config.templateUrls || {}}
+              onUpdateUrl={(id, url) =>
+                update({ templateUrls: { ...config.templateUrls, [id]: url } })
+              }
             />
           )}
           {activeTab === "submodule" && activeSubmodule && (
