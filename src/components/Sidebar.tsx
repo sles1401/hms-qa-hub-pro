@@ -127,7 +127,7 @@ function ProjectSwitcher({ currentProjectId, onSwitch }: { currentProjectId: str
                 key={p.id}
                 onClick={() => { onSwitch(p.id); setOpen(false); }}
                 className={cn(
-                  "flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-colors",
+                  "group flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-colors",
                   p.id === currentProjectId
                     ? "bg-emerald-500/20 text-sidebar-foreground font-medium"
                     : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground"
@@ -145,7 +145,6 @@ function ProjectSwitcher({ currentProjectId, onSwitch }: { currentProjectId: str
                   <button
                     onClick={(e) => handleDelete(p.id, e)}
                     className="opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity shrink-0"
-                    style={{ opacity: p.id === currentProjectId ? 0.3 : undefined }}
                   >
                     <Trash2 size={12} />
                   </button>
