@@ -134,6 +134,13 @@ function ProjectSwitcher({ currentProjectId, onSwitch }: { currentProjectId: str
                 )}
               >
                 <span className="flex-1 truncate">{p.name}</span>
+                <button
+                  onClick={(e) => handleDuplicate(p.id, e)}
+                  className="opacity-0 group-hover:opacity-100 hover:text-emerald-300 transition-opacity shrink-0"
+                  title="Duplikasi project"
+                >
+                  <Copy size={12} />
+                </button>
                 {projects.length > 1 && (
                   <button
                     onClick={(e) => handleDelete(p.id, e)}
