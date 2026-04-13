@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import {
   Database, Truck, ChevronDown, ChevronRight,
   Settings, LayoutDashboard, FileText, Table, Menu, X, HelpCircle, Bug, BookOpen, Rocket,
-  Sun, Moon, Download, Pencil, Check, Plus, Trash2, FolderOpen,
+  Sun, Moon, Download, Pencil, Check, Plus, Trash2, FolderOpen, Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { type Category, type ProjectEntry, loadConfig, getProjects, getActiveProjectId, createProject, deleteProject } from "@/lib/store";
+import { type Category, type ProjectEntry, loadConfig, getProjects, getActiveProjectId, createProject, deleteProject, duplicateProject } from "@/lib/store";
 import { Switch } from "@/components/ui/switch";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -98,6 +98,14 @@ function ProjectSwitcher({ currentProjectId, onSwitch }: { currentProjectId: str
     }
   };
 
+  const handleDuplicate = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newId = duplicateProject(id);
+    refresh();
+    onSwitch(newId);
+    setOpen(false);
+  };
+
   const current = projects.find((p) => p.id === currentProjectId);
 
   return (
@@ -126,6 +134,13 @@ function ProjectSwitcher({ currentProjectId, onSwitch }: { currentProjectId: str
                 )}
               >
                 <span className="flex-1 truncate">{p.name}</span>
+                <button
+                  onClick={(e) => handleDuplicate(p.id, e)}
+                  className="opacity-0 group-hover:opacity-100 hover:text-emerald-300 transition-opacity shrink-0"
+                  title="Duplikasi project"
+                >
+                  <Copy size={12} />
+                </button>
                 {projects.length > 1 && (
                   <button
                     onClick={(e) => handleDelete(p.id, e)}

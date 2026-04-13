@@ -215,6 +215,20 @@ export function createProject(name: string): string {
   return id;
 }
 
+export function duplicateProject(sourceId: string, newName?: string): string {
+  const sourceConfig = loadConfig(sourceId);
+  const projects = getProjects();
+  const id = `project-${Date.now()}`;
+  const name = newName || `${sourceConfig.projectTitle} (Copy)`;
+  projects.push({ id, name });
+  saveProjects(projects);
+
+  const newConfig: AppConfig = { ...sourceConfig, projectTitle: name };
+  localStorage.setItem(projectStorageKey(id), JSON.stringify(newConfig));
+  setActiveProjectId(id);
+  return id;
+}
+
 export function deleteProject(id: string) {
   let projects = getProjects().filter((p) => p.id !== id);
   localStorage.removeItem(projectStorageKey(id));
