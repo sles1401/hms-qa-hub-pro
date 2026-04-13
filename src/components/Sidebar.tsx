@@ -98,6 +98,14 @@ function ProjectSwitcher({ currentProjectId, onSwitch }: { currentProjectId: str
     }
   };
 
+  const handleDuplicate = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newId = duplicateProject(id);
+    refresh();
+    onSwitch(newId);
+    setOpen(false);
+  };
+
   const current = projects.find((p) => p.id === currentProjectId);
 
   return (
