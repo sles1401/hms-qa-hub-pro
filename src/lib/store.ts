@@ -229,6 +229,17 @@ export function duplicateProject(sourceId: string, newName?: string): string {
   return id;
 }
 
+export function importProject(configData: AppConfig): string {
+  const projects = getProjects();
+  const id = `project-${Date.now()}`;
+  const name = configData.projectTitle || `Imported Project`;
+  projects.push({ id, name });
+  saveProjects(projects);
+  localStorage.setItem(projectStorageKey(id), JSON.stringify(configData));
+  setActiveProjectId(id);
+  return id;
+}
+
 export function deleteProject(id: string) {
   let projects = getProjects().filter((p) => p.id !== id);
   localStorage.removeItem(projectStorageKey(id));

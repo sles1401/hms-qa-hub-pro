@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import {
   Database, Truck, ChevronDown, ChevronRight,
   Settings, LayoutDashboard, FileText, Table, Menu, X, HelpCircle, Bug, BookOpen, Rocket,
-  Sun, Moon, Download, Pencil, Check, Plus, Trash2, FolderOpen, Copy,
+  Sun, Moon, Download, Upload, Pencil, Check, Plus, Trash2, FolderOpen, Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { type Category, type ProjectEntry, loadConfig, getProjects, getActiveProjectId, createProject, deleteProject, duplicateProject } from "@/lib/store";
+import { type Category, type ProjectEntry, type AppConfig, loadConfig, getProjects, getActiveProjectId, createProject, deleteProject, duplicateProject, importProject } from "@/lib/store";
 import { Switch } from "@/components/ui/switch";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -374,6 +374,37 @@ export default function Sidebar({
           >
             <Download size={16} />
             Export Backup (JSON)
+          </button>
+          <button
+            onClick={() => {
+              const input = document.createElement("input");
+              input.type = "file";
+              input.accept = ".json";
+              input.onchange = (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  try {
+                    const data = JSON.parse(ev.target?.result as string) as AppConfig;
+                    if (!data.categories && !data.stats) {
+                      alert("File JSON tidak valid. Pastikan file adalah backup dari QA Hub.");
+                      return;
+                    }
+                    const id = importProject(data);
+                    onSwitchProject(id);
+                  } catch {
+                    alert("Gagal membaca file JSON. Pastikan format file benar.");
+                  }
+                };
+                reader.readAsText(file);
+              };
+              input.click();
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground transition-colors"
+          >
+            <Upload size={16} />
+            Import Backup (JSON)
           </button>
         </div>
 
