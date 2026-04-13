@@ -375,6 +375,37 @@ export default function Sidebar({
             <Download size={16} />
             Export Backup (JSON)
           </button>
+          <button
+            onClick={() => {
+              const input = document.createElement("input");
+              input.type = "file";
+              input.accept = ".json";
+              input.onchange = (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  try {
+                    const data = JSON.parse(ev.target?.result as string) as AppConfig;
+                    if (!data.categories && !data.stats) {
+                      alert("File JSON tidak valid. Pastikan file adalah backup dari QA Hub.");
+                      return;
+                    }
+                    const id = importProject(data);
+                    onSwitchProject(id);
+                  } catch {
+                    alert("Gagal membaca file JSON. Pastikan format file benar.");
+                  }
+                };
+                reader.readAsText(file);
+              };
+              input.click();
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground transition-colors"
+          >
+            <Upload size={16} />
+            Import Backup (JSON)
+          </button>
         </div>
 
         {/* Dark Mode Toggle */}
