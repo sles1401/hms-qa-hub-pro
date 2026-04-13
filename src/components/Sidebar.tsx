@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import {
   Database, Truck, ChevronDown, ChevronRight,
   Settings, LayoutDashboard, FileText, Table, Menu, X, HelpCircle, Bug, BookOpen, Rocket,
-  Sun, Moon, Download, Pencil, Check, Plus, Trash2, FolderOpen,
+  Sun, Moon, Download, Pencil, Check, Plus, Trash2, FolderOpen, Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { type Category, type ProjectEntry, loadConfig, getProjects, getActiveProjectId, createProject, deleteProject } from "@/lib/store";
+import { type Category, type ProjectEntry, loadConfig, getProjects, getActiveProjectId, createProject, deleteProject, duplicateProject } from "@/lib/store";
 import { Switch } from "@/components/ui/switch";
 
 const ICON_MAP: Record<string, React.ElementType> = {
