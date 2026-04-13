@@ -77,6 +77,7 @@ export interface AppConfig {
   insightText: string;
   journalEntries: JournalEntry[];
   releaseNotes: ReleaseNote[];
+  templateUrls: Record<string, string>;
 }
 
 export interface ProjectEntry {
@@ -147,6 +148,7 @@ const DEFAULT_CONFIG: AppConfig = {
   insightText: "Good testing is not about finding bugs. It's about delivering confidence in every release.",
   journalEntries: [],
   releaseNotes: [],
+  templateUrls: {},
 };
 
 const PROJECTS_KEY = "hms-qa-projects";
@@ -286,6 +288,7 @@ export function loadConfig(projectId?: string): AppConfig {
         insightText: parsed.insightText ?? DEFAULT_CONFIG.insightText,
         journalEntries: parsed.journalEntries ?? DEFAULT_CONFIG.journalEntries,
         releaseNotes: parsed.releaseNotes ?? DEFAULT_CONFIG.releaseNotes,
+        templateUrls: parsed.templateUrls ?? DEFAULT_CONFIG.templateUrls,
       };
     }
   } catch {}
