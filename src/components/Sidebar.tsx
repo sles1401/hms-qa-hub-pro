@@ -3,6 +3,7 @@ import {
   Database, Truck, ChevronDown, ChevronRight,
   Settings, LayoutDashboard, FileText, Table, Menu, X, HelpCircle, Bug, BookOpen, Rocket,
   Sun, Moon, Download, Upload, Pencil, Check, Plus, Trash2, FolderOpen, Copy,
+  CheckCircle2, History, ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Category, type ProjectEntry, type AppConfig, loadConfig, getProjects, getActiveProjectId, createProject, deleteProject, duplicateProject, importProject } from "@/lib/store";
@@ -205,10 +206,13 @@ export default function Sidebar({
     { id: "test-plan", label: "Strategic Test Plan", icon: FileText },
     { id: "test-case", label: "Test Case Library", icon: Table },
     { id: "defect-tracker", label: "Defect Tracker", icon: Bug },
+    { id: "bug-tracker", label: "Bug Tracker (SLA)", icon: ShieldAlert },
+    { id: "passed-notes", label: "Passed with Notes", icon: CheckCircle2 },
     { id: "faq-logic", label: "FAQ & Logic", icon: HelpCircle },
     { id: "daily-journal", label: "Daily Journal", icon: BookOpen },
     { id: "release-notes", label: "Release Notes", icon: Rocket },
     { id: "template-library", label: "Template Library", icon: FileText },
+    { id: "audit-trail", label: "Audit Trail", icon: History },
   ];
 
   return (

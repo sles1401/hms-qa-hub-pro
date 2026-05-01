@@ -64,6 +64,36 @@ export interface ReleaseNote {
   createdAt: string;
 }
 
+export interface PassedWithNoteEntry {
+  id: string;
+  module: string;
+  testCase: string;
+  note: string;
+  category: "UI/UX" | "Optimization" | "Suggestion" | "Other";
+  createdAt: string;
+}
+
+export interface BugItem {
+  id: string;
+  title: string;
+  module: string;
+  severity: "Low" | "Medium" | "High" | "Critical";
+  status: "Open" | "In Progress" | "Fixed" | "Closed";
+  assignee: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  who: string;
+  action: string;
+  target: string;
+  at: string;
+}
+
+export type Environment = "staging" | "production";
+
 export interface AppConfig {
   projectTitle: string;
   categories: Category[];
@@ -78,6 +108,11 @@ export interface AppConfig {
   journalEntries: JournalEntry[];
   releaseNotes: ReleaseNote[];
   templateUrls: Record<string, string>;
+  releaseDeadline: string; // ISO date string for countdown
+  userName: string; // for humanize greeting
+  passedWithNotes: PassedWithNoteEntry[];
+  bugs: BugItem[];
+  auditLog: AuditLogEntry[];
 }
 
 export interface ProjectEntry {
@@ -133,12 +168,7 @@ const DEFAULT_CONFIG: AppConfig = {
       ],
     },
   ],
-  stats: {
-    totalTC: 0,
-    passed: 0,
-    failed: 0,
-    pending: 0,
-  },
+  stats: { totalTC: 0, passed: 0, failed: 0, pending: 0 },
   testPlanUrl: "",
   testCaseUrl: "",
   defectTrackerUrl: "",
@@ -149,16 +179,32 @@ const DEFAULT_CONFIG: AppConfig = {
   journalEntries: [],
   releaseNotes: [],
   templateUrls: {},
+  releaseDeadline: "",
+  userName: "Yani",
+  passedWithNotes: [],
+  bugs: [],
+  auditLog: [],
 };
 
 const PROJECTS_KEY = "hms-qa-projects";
 const ACTIVE_PROJECT_KEY = "hms-qa-active-project";
+const ACTIVE_ENV_KEY = "hms-qa-active-env";
 
-function projectStorageKey(projectId: string) {
-  return `hms-qa-hub-config-${projectId}`;
+export function getActiveEnv(): Environment {
+  const v = localStorage.getItem(ACTIVE_ENV_KEY);
+  return v === "production" ? "production" : "staging";
 }
 
-// Migration: move old single-project data to multi-project format
+export function setActiveEnv(env: Environment) {
+  localStorage.setItem(ACTIVE_ENV_KEY, env);
+}
+
+function projectStorageKey(projectId: string, env?: Environment) {
+  const e = env || getActiveEnv();
+  return `hms-qa-hub-config-${projectId}-${e}`;
+}
+
+// Migration: move old single-project data to multi-project + env format
 function migrateIfNeeded() {
   const oldKey = "hms-qa-hub-config";
   const existing = localStorage.getItem(PROJECTS_KEY);
@@ -172,14 +218,36 @@ function migrateIfNeeded() {
         const parsed = JSON.parse(oldData);
         projectName = parsed.projectTitle || projectName;
       } catch {}
-      localStorage.setItem(projectStorageKey(defaultId), oldData);
+      // seed both envs with old data
+      localStorage.setItem(`hms-qa-hub-config-${defaultId}-staging`, oldData);
       localStorage.removeItem(oldKey);
     }
 
     const projects: ProjectEntry[] = [{ id: defaultId, name: projectName }];
     localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
     localStorage.setItem(ACTIVE_PROJECT_KEY, defaultId);
+    if (!localStorage.getItem(ACTIVE_ENV_KEY)) localStorage.setItem(ACTIVE_ENV_KEY, "staging");
   }
+
+  // Migrate older multi-project format (without env suffix)
+  const projectsRaw = localStorage.getItem(PROJECTS_KEY);
+  if (projectsRaw) {
+    try {
+      const projects: ProjectEntry[] = JSON.parse(projectsRaw);
+      for (const p of projects) {
+        const legacyKey = `hms-qa-hub-config-${p.id}`;
+        const legacy = localStorage.getItem(legacyKey);
+        if (legacy) {
+          const stagingKey = `hms-qa-hub-config-${p.id}-staging`;
+          if (!localStorage.getItem(stagingKey)) {
+            localStorage.setItem(stagingKey, legacy);
+          }
+          localStorage.removeItem(legacyKey);
+        }
+      }
+    } catch {}
+  }
+  if (!localStorage.getItem(ACTIVE_ENV_KEY)) localStorage.setItem(ACTIVE_ENV_KEY, "staging");
 }
 
 export function getProjects(): ProjectEntry[] {
@@ -212,7 +280,9 @@ export function createProject(name: string): string {
   saveProjects(projects);
 
   const newConfig: AppConfig = { ...DEFAULT_CONFIG, projectTitle: name };
-  localStorage.setItem(projectStorageKey(id), JSON.stringify(newConfig));
+  // seed both envs
+  localStorage.setItem(`hms-qa-hub-config-${id}-staging`, JSON.stringify(newConfig));
+  localStorage.setItem(`hms-qa-hub-config-${id}-production`, JSON.stringify(newConfig));
   setActiveProjectId(id);
   return id;
 }
@@ -225,8 +295,13 @@ export function duplicateProject(sourceId: string, newName?: string): string {
   projects.push({ id, name });
   saveProjects(projects);
 
-  const newConfig: AppConfig = { ...sourceConfig, projectTitle: name };
-  localStorage.setItem(projectStorageKey(id), JSON.stringify(newConfig));
+  // duplicate both envs from source
+  const stagingSrc = localStorage.getItem(`hms-qa-hub-config-${sourceId}-staging`);
+  const prodSrc = localStorage.getItem(`hms-qa-hub-config-${sourceId}-production`);
+  const newStaging = stagingSrc ? { ...JSON.parse(stagingSrc), projectTitle: name } : { ...sourceConfig, projectTitle: name };
+  const newProd = prodSrc ? { ...JSON.parse(prodSrc), projectTitle: name } : { ...sourceConfig, projectTitle: name };
+  localStorage.setItem(`hms-qa-hub-config-${id}-staging`, JSON.stringify(newStaging));
+  localStorage.setItem(`hms-qa-hub-config-${id}-production`, JSON.stringify(newProd));
   setActiveProjectId(id);
   return id;
 }
@@ -237,6 +312,7 @@ export function importProject(configData: AppConfig): string {
   const name = configData.projectTitle || `Imported Project`;
   projects.push({ id, name });
   saveProjects(projects);
+  // import to current env
   localStorage.setItem(projectStorageKey(id), JSON.stringify(configData));
   setActiveProjectId(id);
   return id;
@@ -244,12 +320,14 @@ export function importProject(configData: AppConfig): string {
 
 export function deleteProject(id: string) {
   let projects = getProjects().filter((p) => p.id !== id);
-  localStorage.removeItem(projectStorageKey(id));
+  localStorage.removeItem(`hms-qa-hub-config-${id}-staging`);
+  localStorage.removeItem(`hms-qa-hub-config-${id}-production`);
 
   if (projects.length === 0) {
     const fallbackId = `project-${Date.now()}`;
     projects = [{ id: fallbackId, name: "New Project" }];
-    localStorage.setItem(projectStorageKey(fallbackId), JSON.stringify(DEFAULT_CONFIG));
+    localStorage.setItem(`hms-qa-hub-config-${fallbackId}-staging`, JSON.stringify(DEFAULT_CONFIG));
+    localStorage.setItem(`hms-qa-hub-config-${fallbackId}-production`, JSON.stringify(DEFAULT_CONFIG));
   }
 
   saveProjects(projects);
@@ -268,11 +346,11 @@ export function renameProject(id: string, name: string) {
   }
 }
 
-export function loadConfig(projectId?: string): AppConfig {
+export function loadConfig(projectId?: string, env?: Environment): AppConfig {
   migrateIfNeeded();
   const id = projectId || getActiveProjectId();
   try {
-    const stored = localStorage.getItem(projectStorageKey(id));
+    const stored = localStorage.getItem(projectStorageKey(id, env));
     if (stored) {
       const parsed = JSON.parse(stored);
       return {
@@ -289,15 +367,20 @@ export function loadConfig(projectId?: string): AppConfig {
         journalEntries: parsed.journalEntries ?? DEFAULT_CONFIG.journalEntries,
         releaseNotes: parsed.releaseNotes ?? DEFAULT_CONFIG.releaseNotes,
         templateUrls: parsed.templateUrls ?? DEFAULT_CONFIG.templateUrls,
+        releaseDeadline: parsed.releaseDeadline ?? DEFAULT_CONFIG.releaseDeadline,
+        userName: parsed.userName ?? DEFAULT_CONFIG.userName,
+        passedWithNotes: parsed.passedWithNotes ?? DEFAULT_CONFIG.passedWithNotes,
+        bugs: parsed.bugs ?? DEFAULT_CONFIG.bugs,
+        auditLog: parsed.auditLog ?? DEFAULT_CONFIG.auditLog,
       };
     }
   } catch {}
   return { ...DEFAULT_CONFIG };
 }
 
-export function saveConfig(config: AppConfig, projectId?: string) {
+export function saveConfig(config: AppConfig, projectId?: string, env?: Environment) {
   const id = projectId || getActiveProjectId();
-  localStorage.setItem(projectStorageKey(id), JSON.stringify(config));
+  localStorage.setItem(projectStorageKey(id, env), JSON.stringify(config));
 
   // Also sync project name in the project list
   const projects = getProjects();
@@ -312,4 +395,16 @@ export function resetConfig(): AppConfig {
   const id = getActiveProjectId();
   localStorage.removeItem(projectStorageKey(id));
   return { ...DEFAULT_CONFIG };
+}
+
+export function appendAudit(config: AppConfig, who: string, action: string, target: string): AppConfig {
+  const entry: AuditLogEntry = {
+    id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    who: who || "Unknown",
+    action,
+    target,
+    at: new Date().toISOString(),
+  };
+  const log = [entry, ...(config.auditLog || [])].slice(0, 200);
+  return { ...config, auditLog: log };
 }

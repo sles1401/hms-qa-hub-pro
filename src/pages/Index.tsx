@@ -10,31 +10,51 @@ import DefectTrackerTab from "@/components/DefectTrackerTab";
 import DailyJournalTab from "@/components/DailyJournalTab";
 import ReleaseNotesTab from "@/components/ReleaseNotesTab";
 import TemplateLibraryTab from "@/components/TemplateLibraryTab";
-import { loadConfig, saveConfig, setActiveProjectId, getActiveProjectId, DEFAULT_SUBMODULE_STATS, type AppConfig, type SubmoduleStats } from "@/lib/store";
+import PassedWithNotesTab from "@/components/PassedWithNotesTab";
+import BugTrackerTab from "@/components/BugTrackerTab";
+import AuditTrailTab from "@/components/AuditTrailTab";
+import EnvSwitcher from "@/components/EnvSwitcher";
+import {
+  loadConfig, saveConfig, setActiveProjectId, getActiveProjectId,
+  getActiveEnv, setActiveEnv, appendAudit,
+  DEFAULT_SUBMODULE_STATS, type AppConfig, type SubmoduleStats, type Environment,
+} from "@/lib/store";
 
 export default function Index() {
   const [projectId, setProjectId] = useState(getActiveProjectId);
-  const [config, setConfig] = useState<AppConfig>(() => loadConfig(projectId));
+  const [env, setEnv] = useState<Environment>(getActiveEnv);
+  const [config, setConfig] = useState<AppConfig>(() => loadConfig(projectId, env));
   const [activeTab, setActiveTab] = useState("dashboard");
   const [showModules, setShowModules] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSubmodule, setActiveSubmodule] = useState<{ id: string; name: string } | null>(null);
 
-  useEffect(() => { saveConfig(config, projectId); }, [config, projectId]);
+  useEffect(() => { saveConfig(config, projectId, env); }, [config, projectId, env]);
 
   const update = (partial: Partial<AppConfig>) =>
     setConfig((prev) => ({ ...prev, ...partial }));
 
+  const audit = useCallback((action: string, target: string) => {
+    setConfig((prev) => appendAudit(prev, prev.userName || "User", action, target));
+  }, []);
+
   const handleSwitchProject = useCallback((newId: string) => {
-    // Save current first
-    saveConfig(config, projectId);
+    saveConfig(config, projectId, env);
     setActiveProjectId(newId);
     setProjectId(newId);
-    setConfig(loadConfig(newId));
+    setConfig(loadConfig(newId, env));
     setActiveTab("dashboard");
     setActiveSubmodule(null);
-  }, [config, projectId]);
+  }, [config, projectId, env]);
+
+  const handleSwitchEnv = useCallback((newEnv: Environment) => {
+    saveConfig(config, projectId, env);
+    setActiveEnv(newEnv);
+    setEnv(newEnv);
+    setConfig(loadConfig(projectId, newEnv));
+    setActiveSubmodule(null);
+  }, [config, projectId, env]);
 
   const handleSubmoduleClick = (id: string, name: string) => {
     setActiveTab("submodule");
@@ -77,6 +97,18 @@ export default function Index() {
       />
 
       <main className="flex-1 overflow-y-auto">
+        {/* Top Header with Env Switcher */}
+        <header className="sticky top-0 z-20 bg-background/80 backdrop-blur border-b border-border px-6 py-3 flex items-center justify-between gap-3">
+          <div className="text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">{config.projectTitle}</span>
+            <span className="mx-2">·</span>
+            <span className={env === "production" ? "text-emerald-600 font-medium" : "text-amber-600 font-medium"}>
+              {env === "production" ? "Production" : "Staging"} Environment
+            </span>
+          </div>
+          <EnvSwitcher env={env} onChange={handleSwitchEnv} />
+        </header>
+
         <div className="p-6 md:p-8 max-w-6xl mx-auto">
           {activeTab === "dashboard" && (
             <DashboardTab
@@ -84,85 +116,69 @@ export default function Index() {
               onEditStats={() => setShowStats(true)}
               insightText={config.insightText}
               onUpdateInsight={(insightText) => update({ insightText })}
+              userName={config.userName}
+              onUpdateUserName={(userName) => update({ userName })}
+              releaseDeadline={config.releaseDeadline}
+              onUpdateDeadline={(releaseDeadline) => update({ releaseDeadline })}
+              submoduleStats={config.submoduleStats}
+              categories={config.categories}
+              journalEntries={config.journalEntries}
             />
           )}
           {activeTab === "test-plan" && (
-            <EmbedTab
-              title="Strategic Test Plan"
-              description="Embed your Google Docs test plan document"
-              url={config.testPlanUrl}
-              onUpdateUrl={(url) => update({ testPlanUrl: url })}
-              type="docs"
-            />
+            <EmbedTab title="Strategic Test Plan" description="Embed your Google Docs test plan document"
+              url={config.testPlanUrl} onUpdateUrl={(url) => { update({ testPlanUrl: url }); audit("Update Test Plan URL", url || "(empty)"); }} type="docs" />
           )}
           {activeTab === "test-case" && (
-            <EmbedTab
-              title="Test Case Library"
-              description="Embed your Google Sheets test case spreadsheet"
-              url={config.testCaseUrl}
-              onUpdateUrl={(url) => update({ testCaseUrl: url })}
-              type="sheets"
-            />
+            <EmbedTab title="Test Case Library" description="Embed your Google Sheets test case spreadsheet"
+              url={config.testCaseUrl} onUpdateUrl={(url) => { update({ testCaseUrl: url }); audit("Update Test Case URL", url || "(empty)"); }} type="sheets" />
           )}
           {activeTab === "defect-tracker" && (
-            <DefectTrackerTab
-              url={config.defectTrackerUrl}
-              onUpdateUrl={(url) => update({ defectTrackerUrl: url })}
-            />
+            <DefectTrackerTab url={config.defectTrackerUrl}
+              onUpdateUrl={(url) => { update({ defectTrackerUrl: url }); audit("Update Defect Tracker URL", url || "(empty)"); }} />
+          )}
+          {activeTab === "bug-tracker" && (
+            <BugTrackerTab bugs={config.bugs}
+              onUpdate={(bugs) => update({ bugs })} onAudit={audit} />
+          )}
+          {activeTab === "passed-notes" && (
+            <PassedWithNotesTab entries={config.passedWithNotes}
+              onUpdate={(passedWithNotes) => update({ passedWithNotes })} onAudit={audit} />
+          )}
+          {activeTab === "audit-trail" && (
+            <AuditTrailTab log={config.auditLog} onClear={() => update({ auditLog: [] })} />
           )}
           {activeTab === "faq-logic" && (
-            <QAHubTab
-              questions={config.qaQuestions}
-              onUpdate={(qaQuestions) => update({ qaQuestions })}
-              qaCategories={config.qaCategories || []}
-              onUpdateCategories={(qaCategories) => update({ qaCategories })}
-            />
+            <QAHubTab questions={config.qaQuestions} onUpdate={(qaQuestions) => update({ qaQuestions })}
+              qaCategories={config.qaCategories || []} onUpdateCategories={(qaCategories) => update({ qaCategories })} />
           )}
           {activeTab === "daily-journal" && (
-            <DailyJournalTab
-              entries={config.journalEntries}
-              onUpdate={(journalEntries) => update({ journalEntries })}
-            />
+            <DailyJournalTab entries={config.journalEntries} onUpdate={(journalEntries) => update({ journalEntries })} />
           )}
           {activeTab === "release-notes" && (
-            <ReleaseNotesTab
-              notes={config.releaseNotes}
-              onUpdate={(releaseNotes) => update({ releaseNotes })}
-            />
+            <ReleaseNotesTab notes={config.releaseNotes} onUpdate={(releaseNotes) => update({ releaseNotes })} />
           )}
           {activeTab === "template-library" && (
-            <TemplateLibraryTab
-              templateUrls={config.templateUrls || {}}
-              onUpdateUrl={(id, url) =>
-                update({ templateUrls: { ...config.templateUrls, [id]: url } })
-              }
-            />
+            <TemplateLibraryTab templateUrls={config.templateUrls || {}}
+              onUpdateUrl={(id, url) => update({ templateUrls: { ...config.templateUrls, [id]: url } })} />
           )}
           {activeTab === "submodule" && activeSubmodule && (
-            <SubmoduleDetailTab
-              submoduleId={activeSubmodule.id}
-              submoduleName={activeSubmodule.name}
-              stats={currentSubmoduleStats}
-              onUpdateStats={handleSubmoduleStatsUpdate}
-              onBack={() => handleTabChange("dashboard")}
-            />
+            <SubmoduleDetailTab submoduleId={activeSubmodule.id} submoduleName={activeSubmodule.name}
+              stats={currentSubmoduleStats} onUpdateStats={handleSubmoduleStatsUpdate}
+              onBack={() => handleTabChange("dashboard")} />
           )}
         </div>
       </main>
 
       {showModules && (
-        <ManageModulesModal
-          categories={config.categories}
-          onSave={(categories) => update({ categories })}
-          onClose={() => setShowModules(false)}
-        />
+        <ManageModulesModal categories={config.categories}
+          onSave={(categories) => { update({ categories }); audit("Update Modules", `${categories.length} categories`); }}
+          onClose={() => setShowModules(false)} />
       )}
       {showStats && (
-        <EditStatsModal
-          stats={config.stats}
-          onSave={(stats) => update({ stats })}
-          onClose={() => setShowStats(false)}
-        />
+        <EditStatsModal stats={config.stats}
+          onSave={(stats) => { update({ stats }); audit("Update Dashboard Stats", `Total: ${stats.totalTC}`); }}
+          onClose={() => setShowStats(false)} />
       )}
     </div>
   );
