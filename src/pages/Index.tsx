@@ -137,6 +137,9 @@ export default function Index() {
               submoduleStats={config.submoduleStats}
               categories={config.categories}
               journalEntries={config.journalEntries}
+              globalEditMode={globalEditMode}
+              learnMoreUrl={config.learnMoreUrl}
+              onUpdateLearnMoreUrl={(learnMoreUrl) => { update({ learnMoreUrl }); audit("Update Learn More URL", learnMoreUrl || "(empty)"); }}
             />
           )}
           {activeTab === "test-plan" && (
