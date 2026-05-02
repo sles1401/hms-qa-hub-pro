@@ -15,6 +15,9 @@ interface Props {
   submoduleStats: Record<string, SubmoduleStats>;
   categories: Category[];
   journalEntries: JournalEntry[];
+  globalEditMode?: boolean;
+  learnMoreUrl: string;
+  onUpdateLearnMoreUrl: (url: string) => void;
 }
 
 function getGreeting() {
@@ -49,12 +52,18 @@ export default function DashboardTab({
   stats, onEditStats, insightText, onUpdateInsight,
   userName, onUpdateUserName, releaseDeadline, onUpdateDeadline,
   submoduleStats, categories, journalEntries,
+  globalEditMode = false, learnMoreUrl, onUpdateLearnMoreUrl,
 }: Props) {
   const [editMode, setEditMode] = useState(false);
   const [editInsight, setEditInsight] = useState(insightText);
   const [editingProfile, setEditingProfile] = useState(false);
   const [nameDraft, setNameDraft] = useState(userName);
   const [deadlineDraft, setDeadlineDraft] = useState(releaseDeadline);
+  const [editingUrl, setEditingUrl] = useState(false);
+  const [urlDraft, setUrlDraft] = useState(learnMoreUrl);
+
+  // Auto-enable insight edit when global edit mode active
+  const insightEditing = editMode || globalEditMode;
 
   const passRate = stats.totalTC > 0 ? ((stats.passed / stats.totalTC) * 100).toFixed(1) : "0";
   const countdown = useCountdown(releaseDeadline);
