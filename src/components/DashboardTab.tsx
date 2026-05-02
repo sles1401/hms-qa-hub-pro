@@ -321,56 +321,121 @@ export default function DashboardTab({
 
         {/* QA Insight */}
         <div className="bg-card rounded-xl border border-border p-6 shadow-sm flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Lightbulb size={18} className="text-amber-500" />
-              <h3 className="font-semibold text-foreground">QA Insight of the Day</h3>
+          <div className="flex items-center justify-between mb-4 gap-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Lightbulb size={18} className="text-amber-500 shrink-0" />
+              {globalEditMode ? (
+                <input
+                  value={titleDraft}
+                  onChange={(e) => { setTitleDraft(e.target.value); debouncedTitle(e.target.value); }}
+                  className="font-semibold text-foreground bg-transparent border-b border-dashed border-border focus:outline-none focus:border-primary text-sm flex-1 min-w-0"
+                  placeholder="Card title..."
+                />
+              ) : (
+                <h3 className="font-semibold text-foreground truncate">{insightTitle}</h3>
+              )}
             </div>
-            {globalEditMode && !insightEditing && (
-              <span className="text-[10px] uppercase tracking-wider text-primary font-semibold">Admin Mode</span>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {savedFlash === "title" && <span className="text-[10px] text-emerald-600 inline-flex items-center gap-0.5"><Check size={10}/>Saved</span>}
+              {globalEditMode && (
+                <span className="text-[10px] uppercase tracking-wider text-primary font-semibold">Admin</span>
+              )}
+            </div>
           </div>
           <div className="flex-1 flex items-center justify-center">
             {insightEditing ? (
-              <div className="w-full space-y-3">
-                <textarea value={editInsight} onChange={(e) => setEditInsight(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" rows={4} />
-                <div className="flex gap-2 justify-end">
-                  <button onClick={() => { setEditInsight(insightText); setEditMode(false); }} className="p-2 rounded-lg hover:bg-muted text-muted-foreground"><X size={16} /></button>
-                  <button onClick={handleSaveInsight} className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"><Save size={16} /></button>
+              <div className="w-full space-y-2">
+                <textarea
+                  value={editInsight}
+                  onChange={(e) => { setEditInsight(e.target.value); debouncedInsight(e.target.value); }}
+                  className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                  rows={4}
+                  placeholder="Tulis insight QA hari ini..."
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground">
+                    {savedFlash === "insight" ? <span className="text-emerald-600 inline-flex items-center gap-0.5"><Check size={10}/>Auto-saved</span> : "Auto-save aktif (debounce 600ms)"}
+                  </span>
+                  <button
+                    onClick={() => setConfirm({ kind: "insight", value: editInsight })}
+                    className="text-[11px] px-2 py-1 rounded border border-border text-muted-foreground hover:bg-muted inline-flex items-center gap-1"
+                    title="Konfirmasi simpan sekarang"
+                  >
+                    <Save size={11} /> Save now
+                  </button>
                 </div>
               </div>
             ) : (
               <blockquote className="text-center italic text-muted-foreground text-base leading-relaxed px-4">"{insightText}"</blockquote>
             )}
           </div>
-          <div className="mt-4 pt-4 border-t border-border">
-            {editingUrl ? (
-              <div className="flex items-center gap-2">
-                <input value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} placeholder="https://..."
-                  className="flex-1 px-2 py-1.5 rounded border border-input bg-background text-xs" />
-                <button onClick={() => { onUpdateLearnMoreUrl(urlDraft); setEditingUrl(false); }}
-                  className="p-1.5 rounded bg-primary text-primary-foreground"><Save size={12} /></button>
-                <button onClick={() => { setUrlDraft(learnMoreUrl); setEditingUrl(false); }}
-                  className="p-1.5 rounded hover:bg-muted text-muted-foreground"><X size={12} /></button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between gap-2">
-                <a href={learnMoreUrl || "#"} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-                  <ExternalLink size={12} /> Learn More
-                </a>
-                {globalEditMode && (
-                  <button onClick={() => { setUrlDraft(learnMoreUrl); setEditingUrl(true); }}
-                    className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-                    <Edit2 size={10} /> Edit URL
+          <div className="mt-4 pt-4 border-t border-border space-y-2">
+            {globalEditMode && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide w-16 shrink-0">CTA Text</label>
+                  <input
+                    value={labelDraft}
+                    onChange={(e) => { setLabelDraft(e.target.value); debouncedLabel(e.target.value); }}
+                    placeholder="Button label..."
+                    className="flex-1 px-2 py-1 rounded border border-input bg-background text-xs"
+                  />
+                  {savedFlash === "label" && <Check size={12} className="text-emerald-600" />}
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide w-16 shrink-0">URL</label>
+                  <input
+                    value={urlDraft}
+                    onChange={(e) => { setUrlDraft(e.target.value); debouncedUrl(e.target.value); }}
+                    placeholder="https://..."
+                    className="flex-1 px-2 py-1 rounded border border-input bg-background text-xs"
+                  />
+                  {savedFlash === "url" && <Check size={12} className="text-emerald-600" />}
+                  <button
+                    onClick={() => setConfirm({ kind: "url", value: urlDraft })}
+                    className="text-[10px] px-2 py-1 rounded border border-border text-muted-foreground hover:bg-muted"
+                    title="Konfirmasi simpan URL"
+                  >
+                    Confirm
                   </button>
-                )}
+                </div>
               </div>
             )}
+            <div className="flex items-center justify-between gap-2">
+              <a href={learnMoreUrl || "#"} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+                <ExternalLink size={12} /> {learnMoreLabel || "Learn More"}
+              </a>
+              {globalEditMode && (
+                <span className="text-[10px] text-muted-foreground">Auto-save aktif</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!confirm}
+        title="Konfirmasi Simpan Perubahan"
+        description={
+          confirm?.kind === "url"
+            ? `Simpan URL Learn More menjadi: ${confirm.value || "(kosong)"}?`
+            : confirm?.kind === "insight"
+            ? "Simpan teks insight saat ini ke localStorage?"
+            : "Simpan perubahan?"
+        }
+        confirmLabel="Ya, Simpan"
+        onConfirm={() => {
+          if (!confirm) return;
+          if (confirm.kind === "insight") onUpdateInsight(confirm.value);
+          if (confirm.kind === "url") onUpdateLearnMoreUrl(confirm.value);
+          if (confirm.kind === "title") onUpdateInsightTitle(confirm.value);
+          if (confirm.kind === "label") onUpdateLearnMoreLabel(confirm.value);
+          flashSaved(confirm.kind);
+          setConfirm(null);
+        }}
+        onCancel={() => setConfirm(null)}
+      />
     </div>
   );
 }
