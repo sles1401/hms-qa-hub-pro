@@ -14,6 +14,7 @@ import PassedWithNotesTab from "@/components/PassedWithNotesTab";
 import BugTrackerTab from "@/components/BugTrackerTab";
 import AuditTrailTab from "@/components/AuditTrailTab";
 import EnvSwitcher from "@/components/EnvSwitcher";
+import AdminPinGate, { getStoredPin } from "@/components/AdminPinGate";
 import {
   loadConfig, saveConfig, setActiveProjectId, getActiveProjectId,
   getActiveEnv, setActiveEnv, appendAudit,
@@ -30,6 +31,16 @@ export default function Index() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSubmodule, setActiveSubmodule] = useState<{ id: string; name: string } | null>(null);
   const [globalEditMode, setGlobalEditMode] = useState(false);
+  const [pinGate, setPinGate] = useState<"verify" | "setup" | null>(null);
+
+  const handleToggleAdmin = () => {
+    if (globalEditMode) {
+      setGlobalEditMode(false);
+      return;
+    }
+    const stored = getStoredPin();
+    setPinGate(stored ? "verify" : "setup");
+  };
 
   useEffect(() => { saveConfig(config, projectId, env); }, [config, projectId, env]);
 
@@ -109,15 +120,15 @@ export default function Index() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setGlobalEditMode((p) => !p)}
+              onClick={handleToggleAdmin}
               className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
                 globalEditMode
                   ? "bg-primary text-primary-foreground border-primary shadow-sm"
                   : "border-border text-muted-foreground hover:bg-muted"
               }`}
-              title="Toggle View / Admin mode"
+              title="Toggle View / Admin mode (PIN protected)"
             >
-              {globalEditMode ? "🔓 Admin Mode" : "👁 View Mode"}
+              {globalEditMode ? "🔓 Admin Mode" : "🔒 View Mode"}
             </button>
             <EnvSwitcher env={env} onChange={handleSwitchEnv} />
           </div>
@@ -140,6 +151,10 @@ export default function Index() {
               globalEditMode={globalEditMode}
               learnMoreUrl={config.learnMoreUrl}
               onUpdateLearnMoreUrl={(learnMoreUrl) => { update({ learnMoreUrl }); audit("Update Learn More URL", learnMoreUrl || "(empty)"); }}
+              insightTitle={config.insightTitle}
+              onUpdateInsightTitle={(insightTitle) => { update({ insightTitle }); audit("Update Insight Title", insightTitle); }}
+              learnMoreLabel={config.learnMoreLabel}
+              onUpdateLearnMoreLabel={(learnMoreLabel) => { update({ learnMoreLabel }); audit("Update Learn More Label", learnMoreLabel); }}
             />
           )}
           {activeTab === "test-plan" && (
@@ -196,6 +211,9 @@ export default function Index() {
         <EditStatsModal stats={config.stats}
           onSave={(stats) => { update({ stats }); audit("Update Dashboard Stats", `Total: ${stats.totalTC}`); }}
           onClose={() => setShowStats(false)} />
+      )}
+      {pinGate && (
+        <AdminPinGate mode={pinGate} onSuccess={() => { setGlobalEditMode(true); setPinGate(null); audit("Enable Admin Mode", "PIN verified"); }} onClose={() => setPinGate(null)} />
       )}
     </div>
   );
