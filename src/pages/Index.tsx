@@ -29,6 +29,7 @@ export default function Index() {
   const [showStats, setShowStats] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSubmodule, setActiveSubmodule] = useState<{ id: string; name: string } | null>(null);
+  const [globalEditMode, setGlobalEditMode] = useState(false);
 
   useEffect(() => { saveConfig(config, projectId, env); }, [config, projectId, env]);
 
@@ -97,7 +98,7 @@ export default function Index() {
       />
 
       <main className="flex-1 overflow-y-auto">
-        {/* Top Header with Env Switcher */}
+        {/* Top Header with Env Switcher + Global Edit Mode */}
         <header className="sticky top-0 z-20 bg-background/80 backdrop-blur border-b border-border px-6 py-3 flex items-center justify-between gap-3">
           <div className="text-xs text-muted-foreground">
             <span className="font-medium text-foreground">{config.projectTitle}</span>
@@ -106,7 +107,20 @@ export default function Index() {
               {env === "production" ? "Production" : "Staging"} Environment
             </span>
           </div>
-          <EnvSwitcher env={env} onChange={handleSwitchEnv} />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setGlobalEditMode((p) => !p)}
+              className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
+                globalEditMode
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "border-border text-muted-foreground hover:bg-muted"
+              }`}
+              title="Toggle View / Admin mode"
+            >
+              {globalEditMode ? "🔓 Admin Mode" : "👁 View Mode"}
+            </button>
+            <EnvSwitcher env={env} onChange={handleSwitchEnv} />
+          </div>
         </header>
 
         <div className="p-6 md:p-8 max-w-6xl mx-auto">
