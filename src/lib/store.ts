@@ -114,6 +114,8 @@ export interface AppConfig {
   bugs: BugItem[];
   auditLog: AuditLogEntry[];
   learnMoreUrl: string;
+  insightTitle: string;
+  learnMoreLabel: string;
 }
 
 export interface ProjectEntry {
@@ -186,6 +188,8 @@ const DEFAULT_CONFIG: AppConfig = {
   bugs: [],
   auditLog: [],
   learnMoreUrl: "https://www.istqb.org/",
+  insightTitle: "QA Insight of the Day",
+  learnMoreLabel: "Learn More",
 };
 
 const PROJECTS_KEY = "hms-qa-projects";
@@ -375,6 +379,8 @@ export function loadConfig(projectId?: string, env?: Environment): AppConfig {
         bugs: parsed.bugs ?? DEFAULT_CONFIG.bugs,
         auditLog: parsed.auditLog ?? DEFAULT_CONFIG.auditLog,
         learnMoreUrl: parsed.learnMoreUrl ?? DEFAULT_CONFIG.learnMoreUrl,
+        insightTitle: parsed.insightTitle ?? DEFAULT_CONFIG.insightTitle,
+        learnMoreLabel: parsed.learnMoreLabel ?? DEFAULT_CONFIG.learnMoreLabel,
       };
     }
   } catch {}
