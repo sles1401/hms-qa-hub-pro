@@ -15,6 +15,9 @@ interface Props {
   submoduleStats: Record<string, SubmoduleStats>;
   categories: Category[];
   journalEntries: JournalEntry[];
+  globalEditMode?: boolean;
+  learnMoreUrl: string;
+  onUpdateLearnMoreUrl: (url: string) => void;
 }
 
 function getGreeting() {
@@ -49,12 +52,18 @@ export default function DashboardTab({
   stats, onEditStats, insightText, onUpdateInsight,
   userName, onUpdateUserName, releaseDeadline, onUpdateDeadline,
   submoduleStats, categories, journalEntries,
+  globalEditMode = false, learnMoreUrl, onUpdateLearnMoreUrl,
 }: Props) {
   const [editMode, setEditMode] = useState(false);
   const [editInsight, setEditInsight] = useState(insightText);
   const [editingProfile, setEditingProfile] = useState(false);
   const [nameDraft, setNameDraft] = useState(userName);
   const [deadlineDraft, setDeadlineDraft] = useState(releaseDeadline);
+  const [editingUrl, setEditingUrl] = useState(false);
+  const [urlDraft, setUrlDraft] = useState(learnMoreUrl);
+
+  // Auto-enable insight edit when global edit mode active
+  const insightEditing = editMode || globalEditMode;
 
   const passRate = stats.totalTC > 0 ? ((stats.passed / stats.totalTC) * 100).toFixed(1) : "0";
   const countdown = useCountdown(releaseDeadline);
@@ -247,46 +256,60 @@ export default function DashboardTab({
 
       {/* Middle Row: Analytics + Insight */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
+        {/* Live Analytics — Hero */}
+        <div className="bg-gradient-to-br from-emerald-50 via-card to-card dark:from-emerald-950/30 rounded-xl border border-border p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp size={18} className="text-primary" />
-            <h3 className="font-semibold text-foreground">Live Analytics</h3>
+            <h3 className="font-semibold text-foreground">Live Analytics — Auto Pass Rate</h3>
           </div>
-          <div className="text-center mb-4">
-            <p className="text-5xl font-extrabold text-primary">{passRate}%</p>
-            <p className="text-sm text-muted-foreground mt-1">Pass Rate</p>
+          <div className="text-center mb-5">
+            <p className="text-6xl font-extrabold bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">
+              {passRate}%
+            </p>
+            <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wider">
+              {Number(stats.passed ?? 0)} of {Number(stats.totalTC ?? 0)} test cases passed
+            </p>
           </div>
-          <div className="h-3 bg-muted rounded-full overflow-hidden mb-4">
-            <div className="h-full bg-primary rounded-full transition-all duration-700" style={{ width: `${passRate}%` }} />
+          <div className="h-4 bg-muted rounded-full overflow-hidden mb-5 shadow-inner">
+            <div
+              className="h-full bg-gradient-to-r from-primary to-emerald-400 rounded-full transition-all duration-700 shadow-[0_0_12px_rgba(6,78,59,0.5)]"
+              style={{ width: `${Math.min(Number(passRate), 100)}%` }}
+            />
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div className="text-center p-3 bg-emerald-50 rounded-lg">
+            <div className="text-center p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg">
               <p className="text-lg font-bold text-stat-passed">{Number(stats.passed ?? 0).toLocaleString()}</p>
               <p className="text-[11px] text-muted-foreground">Passed</p>
             </div>
-            <div className="text-center p-3 bg-red-50 rounded-lg">
+            <div className="text-center p-3 bg-red-50 dark:bg-red-950/40 rounded-lg">
               <p className="text-lg font-bold text-stat-failed">{Number(stats.failed ?? 0).toLocaleString()}</p>
               <p className="text-[11px] text-muted-foreground">Failed</p>
             </div>
-            <div className="text-center p-3 bg-amber-50 rounded-lg">
+            <div className="text-center p-3 bg-amber-50 dark:bg-amber-950/40 rounded-lg">
               <p className="text-lg font-bold text-stat-pending">{Number(stats.pending ?? 0).toLocaleString()}</p>
               <p className="text-[11px] text-muted-foreground">Pending</p>
             </div>
           </div>
         </div>
 
+        {/* QA Insight */}
         <div className="bg-card rounded-xl border border-border p-6 shadow-sm flex flex-col">
-          <div className="flex items-center gap-2 mb-4">
-            <Lightbulb size={18} className="text-amber-500" />
-            <h3 className="font-semibold text-foreground">QA Insight of the Day</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Lightbulb size={18} className="text-amber-500" />
+              <h3 className="font-semibold text-foreground">QA Insight of the Day</h3>
+            </div>
+            {globalEditMode && !insightEditing && (
+              <span className="text-[10px] uppercase tracking-wider text-primary font-semibold">Admin Mode</span>
+            )}
           </div>
           <div className="flex-1 flex items-center justify-center">
-            {editMode ? (
+            {insightEditing ? (
               <div className="w-full space-y-3">
                 <textarea value={editInsight} onChange={(e) => setEditInsight(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" rows={4} />
                 <div className="flex gap-2 justify-end">
-                  <button onClick={() => setEditMode(false)} className="p-2 rounded-lg hover:bg-muted text-muted-foreground"><X size={16} /></button>
+                  <button onClick={() => { setEditInsight(insightText); setEditMode(false); }} className="p-2 rounded-lg hover:bg-muted text-muted-foreground"><X size={16} /></button>
                   <button onClick={handleSaveInsight} className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"><Save size={16} /></button>
                 </div>
               </div>
@@ -295,10 +318,29 @@ export default function DashboardTab({
             )}
           </div>
           <div className="mt-4 pt-4 border-t border-border">
-            <a href="https://www.istqb.org/" target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm text-primary hover:underline">
-              <ExternalLink size={14} /> Learn More — ISTQB Documentation
-            </a>
+            {editingUrl ? (
+              <div className="flex items-center gap-2">
+                <input value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} placeholder="https://..."
+                  className="flex-1 px-2 py-1.5 rounded border border-input bg-background text-xs" />
+                <button onClick={() => { onUpdateLearnMoreUrl(urlDraft); setEditingUrl(false); }}
+                  className="p-1.5 rounded bg-primary text-primary-foreground"><Save size={12} /></button>
+                <button onClick={() => { setUrlDraft(learnMoreUrl); setEditingUrl(false); }}
+                  className="p-1.5 rounded hover:bg-muted text-muted-foreground"><X size={12} /></button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <a href={learnMoreUrl || "#"} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+                  <ExternalLink size={12} /> Learn More
+                </a>
+                {globalEditMode && (
+                  <button onClick={() => { setUrlDraft(learnMoreUrl); setEditingUrl(true); }}
+                    className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+                    <Edit2 size={10} /> Edit URL
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
