@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
-import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, X, Calendar, Sparkles } from "lucide-react";
+import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, X, Calendar, Sparkles, Check } from "lucide-react";
 import { type AppStats, type SubmoduleStats, type JournalEntry, type Category } from "@/lib/store";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
+import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 interface Props {
   stats: AppStats;
@@ -18,6 +20,10 @@ interface Props {
   globalEditMode?: boolean;
   learnMoreUrl: string;
   onUpdateLearnMoreUrl: (url: string) => void;
+  insightTitle: string;
+  onUpdateInsightTitle: (t: string) => void;
+  learnMoreLabel: string;
+  onUpdateLearnMoreLabel: (t: string) => void;
 }
 
 function getGreeting() {
@@ -53,14 +59,35 @@ export default function DashboardTab({
   userName, onUpdateUserName, releaseDeadline, onUpdateDeadline,
   submoduleStats, categories, journalEntries,
   globalEditMode = false, learnMoreUrl, onUpdateLearnMoreUrl,
+  insightTitle, onUpdateInsightTitle, learnMoreLabel, onUpdateLearnMoreLabel,
 }: Props) {
   const [editMode, setEditMode] = useState(false);
   const [editInsight, setEditInsight] = useState(insightText);
   const [editingProfile, setEditingProfile] = useState(false);
   const [nameDraft, setNameDraft] = useState(userName);
   const [deadlineDraft, setDeadlineDraft] = useState(releaseDeadline);
-  const [editingUrl, setEditingUrl] = useState(false);
   const [urlDraft, setUrlDraft] = useState(learnMoreUrl);
+  const [titleDraft, setTitleDraft] = useState(insightTitle);
+  const [labelDraft, setLabelDraft] = useState(learnMoreLabel);
+
+  // Confirm dialog state
+  const [confirm, setConfirm] = useState<null | { kind: "insight" | "url" | "title" | "label"; value: string }>(null);
+
+  // Auto-saved indicators (transient)
+  const [savedFlash, setSavedFlash] = useState<string | null>(null);
+  const flashSaved = (key: string) => { setSavedFlash(key); setTimeout(() => setSavedFlash((k) => k === key ? null : k), 1200); };
+
+  // Sync drafts when props change (e.g. project switch)
+  useEffect(() => { setEditInsight(insightText); }, [insightText]);
+  useEffect(() => { setUrlDraft(learnMoreUrl); }, [learnMoreUrl]);
+  useEffect(() => { setTitleDraft(insightTitle); }, [insightTitle]);
+  useEffect(() => { setLabelDraft(learnMoreLabel); }, [learnMoreLabel]);
+
+  // Debounced auto-save (Admin Mode)
+  const debouncedInsight = useDebouncedCallback((v: string) => { onUpdateInsight(v); flashSaved("insight"); }, 600);
+  const debouncedUrl = useDebouncedCallback((v: string) => { onUpdateLearnMoreUrl(v); flashSaved("url"); }, 600);
+  const debouncedTitle = useDebouncedCallback((v: string) => { onUpdateInsightTitle(v); flashSaved("title"); }, 600);
+  const debouncedLabel = useDebouncedCallback((v: string) => { onUpdateLearnMoreLabel(v); flashSaved("label"); }, 600);
 
   // Auto-enable insight edit when global edit mode active
   const insightEditing = editMode || globalEditMode;
