@@ -212,6 +212,9 @@ export default function Index() {
           onSave={(stats) => { update({ stats }); audit("Update Dashboard Stats", `Total: ${stats.totalTC}`); }}
           onClose={() => setShowStats(false)} />
       )}
+      {pinGate && (
+        <AdminPinGate mode={pinGate} onSuccess={() => { setGlobalEditMode(true); setPinGate(null); audit("Enable Admin Mode", "PIN verified"); }} onClose={() => setPinGate(null)} />
+      )}
     </div>
   );
 }
