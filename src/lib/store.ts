@@ -113,6 +113,7 @@ export interface AppConfig {
   passedWithNotes: PassedWithNoteEntry[];
   bugs: BugItem[];
   auditLog: AuditLogEntry[];
+  learnMoreUrl: string;
 }
 
 export interface ProjectEntry {
@@ -184,6 +185,7 @@ const DEFAULT_CONFIG: AppConfig = {
   passedWithNotes: [],
   bugs: [],
   auditLog: [],
+  learnMoreUrl: "https://www.istqb.org/",
 };
 
 const PROJECTS_KEY = "hms-qa-projects";
