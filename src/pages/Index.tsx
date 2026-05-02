@@ -14,6 +14,7 @@ import PassedWithNotesTab from "@/components/PassedWithNotesTab";
 import BugTrackerTab from "@/components/BugTrackerTab";
 import AuditTrailTab from "@/components/AuditTrailTab";
 import EnvSwitcher from "@/components/EnvSwitcher";
+import AdminPinGate, { getStoredPin } from "@/components/AdminPinGate";
 import {
   loadConfig, saveConfig, setActiveProjectId, getActiveProjectId,
   getActiveEnv, setActiveEnv, appendAudit,
@@ -30,6 +31,16 @@ export default function Index() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSubmodule, setActiveSubmodule] = useState<{ id: string; name: string } | null>(null);
   const [globalEditMode, setGlobalEditMode] = useState(false);
+  const [pinGate, setPinGate] = useState<"verify" | "setup" | null>(null);
+
+  const handleToggleAdmin = () => {
+    if (globalEditMode) {
+      setGlobalEditMode(false);
+      return;
+    }
+    const stored = getStoredPin();
+    setPinGate(stored ? "verify" : "setup");
+  };
 
   useEffect(() => { saveConfig(config, projectId, env); }, [config, projectId, env]);
 
