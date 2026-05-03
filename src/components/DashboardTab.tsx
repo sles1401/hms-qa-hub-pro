@@ -196,14 +196,22 @@ export default function DashboardTab({
     commitField("learnMoreUrl", v);
   }, 700);
 
+  // Per-field validation (live)
+  const titleError = useMemo(() => validateTitle(titleDraft), [titleDraft]);
+  const labelError = useMemo(() => validateLabel(labelDraft), [labelDraft]);
+  const insightError = useMemo(() => validateInsight(editInsight), [editInsight]);
+  const urlValidation = useMemo(() => isValidGoogleDriveUrl(urlDraft), [urlDraft]);
+  const liveUrlError = urlValidation.ok ? null : (urlValidation.reason || "URL tidak valid");
+
+  // Saved Learn More URL validity (controls the Learn More button itself)
+  const savedUrlValid = useMemo(() => isValidGoogleDriveUrl(learnMoreUrl).ok, [learnMoreUrl]);
+
+  // Field-level state for autosave/manual + sync error display
   const handleUrlChange = (v: string) => {
     setUrlDraft(v);
-    if (!v.trim()) { setUrlError(null); }
-    else {
-      const check = isValidGoogleDriveUrl(v);
-      setUrlError(check.ok ? null : (check.reason || "URL tidak valid"));
-    }
-    if (autoSave) debUrl(v);
+    const check = isValidGoogleDriveUrl(v);
+    setUrlError(check.ok ? null : (check.reason || "URL tidak valid"));
+    if (autoSave && check.ok) debUrl(v);
   };
 
   const handleConfirmSaveUrl = () => {
@@ -212,8 +220,8 @@ export default function DashboardTab({
     setConfirm({ kind: "learnMoreUrl", value: urlDraft });
   };
 
+  // Multi-level Undo — pop most recent and restore old value
   const handleUndo = () => {
-    // Undo most recent history entry
     if (history.length === 0) return;
     const last = history[0];
     if (last.field === "insightText") onUpdateInsight(last.oldValue);
@@ -235,6 +243,28 @@ export default function DashboardTab({
     setLabelDraft(DASHBOARD_DEFAULTS.learnMoreLabel);
     setUrlDraft(DASHBOARD_DEFAULTS.learnMoreUrl);
     setUrlError(null);
+  };
+
+  // Export history
+  const exportHistoryJSON = () => {
+    if (history.length === 0) return;
+    downloadFile(
+      `dashboard-history-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify(history, null, 2),
+      "application/json"
+    );
+  };
+  const exportHistoryCSV = () => {
+    if (history.length === 0) return;
+    const header = "id,field,oldValue,newValue,at";
+    const rows = history.map((h) =>
+      [h.id, h.field, h.oldValue, h.newValue, h.at].map(csvEscape).join(",")
+    );
+    downloadFile(
+      `dashboard-history-${new Date().toISOString().slice(0, 10)}.csv`,
+      [header, ...rows].join("\n"),
+      "text/csv"
+    );
   };
 
   const insightEditing = editMode || globalEditMode;
@@ -276,11 +306,13 @@ export default function DashboardTab({
       .map(([date, count]) => ({ date: date.slice(5), entries: count }));
   }, [journalEntries]);
 
+  const nameError = useMemo(() => validateName(nameDraft), [nameDraft]);
+  const deadlineError = useMemo(() => validateDeadline(deadlineDraft), [deadlineDraft]);
+  const profileValid = !nameError && !deadlineError;
+
   const handleSaveProfile = () => {
-    const trimmed = nameDraft.trim();
-    if (!trimmed) return;
-    if (trimmed.length > 50) return;
-    onUpdateUserName(trimmed);
+    if (!profileValid) return;
+    onUpdateUserName(nameDraft.trim());
     onUpdateDeadline(deadlineDraft);
     setEditingProfile(false);
   };
