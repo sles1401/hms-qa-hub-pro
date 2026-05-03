@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
-import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, X, Calendar, Sparkles, Check } from "lucide-react";
-import { type AppStats, type SubmoduleStats, type JournalEntry, type Category } from "@/lib/store";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, Calendar, Sparkles, Check, Undo2, History, RotateCcw, AlertCircle } from "lucide-react";
+import { type AppStats, type SubmoduleStats, type JournalEntry, type Category, DASHBOARD_DEFAULTS, isValidGoogleDriveUrl, type DashboardHistoryEntry } from "@/lib/store";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -24,6 +24,19 @@ interface Props {
   onUpdateInsightTitle: (t: string) => void;
   learnMoreLabel: string;
   onUpdateLearnMoreLabel: (t: string) => void;
+}
+
+type FieldKey = "insightText" | "insightTitle" | "learnMoreLabel" | "learnMoreUrl";
+
+const HISTORY_KEY = "hms-qa-dashboard-history";
+const AUTOSAVE_KEY = "hms-qa-dashboard-autosave";
+const HISTORY_MAX = 30;
+
+function loadHistory(): DashboardHistoryEntry[] {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; }
+}
+function saveHistory(h: DashboardHistoryEntry[]) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(0, HISTORY_MAX)));
 }
 
 function getGreeting() {
@@ -54,6 +67,13 @@ function useCountdown(target: string) {
 
 const PIE_COLORS = ["#10b981", "#ef4444", "#f59e0b", "#3b82f6", "#a855f7", "#06b6d4"];
 
+const FIELD_LABELS: Record<FieldKey, string> = {
+  insightText: "Insight Text",
+  insightTitle: "Insight Title",
+  learnMoreLabel: "CTA Label",
+  learnMoreUrl: "Learn More URL",
+};
+
 export default function DashboardTab({
   stats, onEditStats, insightText, onUpdateInsight,
   userName, onUpdateUserName, releaseDeadline, onUpdateDeadline,
@@ -62,41 +82,120 @@ export default function DashboardTab({
   insightTitle, onUpdateInsightTitle, learnMoreLabel, onUpdateLearnMoreLabel,
 }: Props) {
   const [editMode, setEditMode] = useState(false);
-  const [editInsight, setEditInsight] = useState(insightText);
   const [editingProfile, setEditingProfile] = useState(false);
   const [nameDraft, setNameDraft] = useState(userName);
   const [deadlineDraft, setDeadlineDraft] = useState(releaseDeadline);
+
+  // Drafts (decoupled from saved value when autoSave OFF)
+  const [editInsight, setEditInsight] = useState(insightText);
   const [urlDraft, setUrlDraft] = useState(learnMoreUrl);
   const [titleDraft, setTitleDraft] = useState(insightTitle);
   const [labelDraft, setLabelDraft] = useState(learnMoreLabel);
 
-  // Confirm dialog state
-  const [confirm, setConfirm] = useState<null | { kind: "insight" | "url" | "title" | "label"; value: string }>(null);
+  // Auto-save toggle (persisted)
+  const [autoSave, setAutoSave] = useState<boolean>(() => {
+    const v = localStorage.getItem(AUTOSAVE_KEY);
+    return v === null ? true : v === "true";
+  });
+  useEffect(() => { localStorage.setItem(AUTOSAVE_KEY, String(autoSave)); }, [autoSave]);
 
-  // Auto-saved indicators (transient)
+  // History (persisted)
+  const [history, setHistory] = useState<DashboardHistoryEntry[]>(() => loadHistory());
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Snapshot of last saved values for Undo
+  const lastSnapshot = useRef<Partial<Record<FieldKey, string>>>({});
+
+  const [confirm, setConfirm] = useState<null | { kind: FieldKey | "reset"; value?: string }>(null);
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
-  const flashSaved = (key: string) => { setSavedFlash(key); setTimeout(() => setSavedFlash((k) => k === key ? null : k), 1200); };
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const flashSaved = (key: string) => { setSavedFlash(key); setTimeout(() => setSavedFlash((k) => k === key ? null : k), 1400); };
 
-  // Sync drafts when props change (e.g. project switch)
+  // Sync drafts when props change (project switch / external update)
   useEffect(() => { setEditInsight(insightText); }, [insightText]);
   useEffect(() => { setUrlDraft(learnMoreUrl); }, [learnMoreUrl]);
   useEffect(() => { setTitleDraft(insightTitle); }, [insightTitle]);
   useEffect(() => { setLabelDraft(learnMoreLabel); }, [learnMoreLabel]);
 
-  // Debounced auto-save (Admin Mode)
-  const debouncedInsight = useDebouncedCallback((v: string) => { onUpdateInsight(v); flashSaved("insight"); }, 600);
-  const debouncedUrl = useDebouncedCallback((v: string) => { onUpdateLearnMoreUrl(v); flashSaved("url"); }, 600);
-  const debouncedTitle = useDebouncedCallback((v: string) => { onUpdateInsightTitle(v); flashSaved("title"); }, 600);
-  const debouncedLabel = useDebouncedCallback((v: string) => { onUpdateLearnMoreLabel(v); flashSaved("label"); }, 600);
+  const recordHistory = (field: FieldKey, oldValue: string, newValue: string) => {
+    if (oldValue === newValue) return;
+    const entry: DashboardHistoryEntry = {
+      id: `h-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      field, oldValue, newValue, at: new Date().toISOString(),
+    };
+    const next = [entry, ...history].slice(0, HISTORY_MAX);
+    setHistory(next); saveHistory(next);
+  };
 
-  // Auto-enable insight edit when global edit mode active
+  const commitField = (field: FieldKey, newValue: string) => {
+    const current = { insightText, insightTitle, learnMoreLabel, learnMoreUrl }[field];
+    if (current === newValue) return;
+    lastSnapshot.current[field] = current;
+    recordHistory(field, current, newValue);
+    if (field === "insightText") onUpdateInsight(newValue);
+    if (field === "insightTitle") onUpdateInsightTitle(newValue);
+    if (field === "learnMoreLabel") onUpdateLearnMoreLabel(newValue);
+    if (field === "learnMoreUrl") onUpdateLearnMoreUrl(newValue);
+    flashSaved(field);
+  };
+
+  // Debounced auto-save (only when autoSave ON)
+  const debInsight = useDebouncedCallback((v: string) => commitField("insightText", v), 600);
+  const debTitle = useDebouncedCallback((v: string) => commitField("insightTitle", v), 600);
+  const debLabel = useDebouncedCallback((v: string) => commitField("learnMoreLabel", v), 600);
+  const debUrl = useDebouncedCallback((v: string) => {
+    const check = isValidGoogleDriveUrl(v);
+    if (!check.ok) { setUrlError(check.reason || "URL tidak valid"); return; }
+    setUrlError(null);
+    commitField("learnMoreUrl", v);
+  }, 700);
+
+  const handleUrlChange = (v: string) => {
+    setUrlDraft(v);
+    if (!v.trim()) { setUrlError(null); }
+    else {
+      const check = isValidGoogleDriveUrl(v);
+      setUrlError(check.ok ? null : (check.reason || "URL tidak valid"));
+    }
+    if (autoSave) debUrl(v);
+  };
+
+  const handleConfirmSaveUrl = () => {
+    const check = isValidGoogleDriveUrl(urlDraft);
+    if (!check.ok) { setUrlError(check.reason || "URL tidak valid"); return; }
+    setConfirm({ kind: "learnMoreUrl", value: urlDraft });
+  };
+
+  const handleUndo = () => {
+    // Undo most recent history entry
+    if (history.length === 0) return;
+    const last = history[0];
+    if (last.field === "insightText") onUpdateInsight(last.oldValue);
+    if (last.field === "insightTitle") onUpdateInsightTitle(last.oldValue);
+    if (last.field === "learnMoreLabel") onUpdateLearnMoreLabel(last.oldValue);
+    if (last.field === "learnMoreUrl") onUpdateLearnMoreUrl(last.oldValue);
+    const next = history.slice(1);
+    setHistory(next); saveHistory(next);
+    flashSaved("undo");
+  };
+
+  const handleResetDefaults = () => {
+    commitField("insightText", DASHBOARD_DEFAULTS.insightText);
+    commitField("insightTitle", DASHBOARD_DEFAULTS.insightTitle);
+    commitField("learnMoreLabel", DASHBOARD_DEFAULTS.learnMoreLabel);
+    commitField("learnMoreUrl", DASHBOARD_DEFAULTS.learnMoreUrl);
+    setEditInsight(DASHBOARD_DEFAULTS.insightText);
+    setTitleDraft(DASHBOARD_DEFAULTS.insightTitle);
+    setLabelDraft(DASHBOARD_DEFAULTS.learnMoreLabel);
+    setUrlDraft(DASHBOARD_DEFAULTS.learnMoreUrl);
+    setUrlError(null);
+  };
+
   const insightEditing = editMode || globalEditMode;
 
   const passRate = stats.totalTC > 0 ? ((stats.passed / stats.totalTC) * 100).toFixed(1) : "0";
   const countdown = useCountdown(releaseDeadline);
   const greeting = getGreeting();
-
-  // Critical pending count for greeting message
   const pendingCount = stats.pending;
 
   const cards = [
@@ -106,7 +205,6 @@ export default function DashboardTab({
     { label: "Pending", value: stats.pending, icon: Clock, color: "text-stat-pending", bg: "bg-amber-50", glow: false },
   ];
 
-  // Pie chart: status per submodule (aggregated by category)
   const pieData = useMemo(() => {
     const result: { name: string; value: number }[] = [];
     for (const cat of categories) {
@@ -120,7 +218,6 @@ export default function DashboardTab({
     return result;
   }, [categories, submoduleStats]);
 
-  // Line chart: daily execution trend from journal entries (count per day)
   const lineData = useMemo(() => {
     const map: Record<string, number> = {};
     for (const j of journalEntries) {
@@ -133,9 +230,11 @@ export default function DashboardTab({
       .map(([date, count]) => ({ date: date.slice(5), entries: count }));
   }, [journalEntries]);
 
-  const handleSaveInsight = () => { onUpdateInsight(editInsight); setEditMode(false); };
   const handleSaveProfile = () => {
-    onUpdateUserName(nameDraft.trim() || userName);
+    const trimmed = nameDraft.trim();
+    if (!trimmed) return;
+    if (trimmed.length > 50) return;
+    onUpdateUserName(trimmed);
     onUpdateDeadline(deadlineDraft);
     setEditingProfile(false);
   };
@@ -173,7 +272,7 @@ export default function DashboardTab({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="text-xs text-muted-foreground">Nama Panggilan</label>
-                <input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)}
+                <input value={nameDraft} maxLength={50} onChange={(e) => setNameDraft(e.target.value)}
                   className="w-full px-2 py-1.5 rounded border border-input bg-background text-sm mt-1" />
               </div>
               <div>
@@ -184,12 +283,11 @@ export default function DashboardTab({
             </div>
             <div className="flex justify-end gap-2">
               <button onClick={() => setEditingProfile(false)} className="px-3 py-1 text-xs rounded border border-border text-muted-foreground">Cancel</button>
-              <button onClick={handleSaveProfile} className="px-3 py-1 text-xs rounded bg-primary text-primary-foreground">Save</button>
+              <button onClick={handleSaveProfile} disabled={!nameDraft.trim()} className="px-3 py-1 text-xs rounded bg-primary text-primary-foreground disabled:opacity-50">Save</button>
             </div>
           </div>
         )}
 
-        {/* Countdown */}
         {countdown && (
           <div className="mt-4 flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -212,19 +310,41 @@ export default function DashboardTab({
         )}
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 className="text-xl font-bold text-foreground">Dashboard</h2>
           <p className="text-sm text-muted-foreground">Overview of QA test execution</p>
         </div>
-        <button
-          onClick={() => { setEditMode(!editMode); if (!editMode) onEditStats(); }}
-          className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors ${editMode ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted text-muted-foreground"}`}>
-          <Edit2 size={14} /> {editMode ? "Editing..." : "Edit Stats"}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {globalEditMode && (
+            <>
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground border border-border rounded-md px-2 py-1.5 bg-card">
+                <input type="checkbox" checked={autoSave} onChange={(e) => setAutoSave(e.target.checked)} className="accent-primary" />
+                Auto-save
+              </label>
+              <button onClick={handleUndo} disabled={history.length === 0}
+                className="text-xs px-2.5 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-muted disabled:opacity-40 inline-flex items-center gap-1">
+                <Undo2 size={12} /> Undo
+              </button>
+              <button onClick={() => setShowHistory(true)}
+                className="text-xs px-2.5 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-muted inline-flex items-center gap-1">
+                <History size={12} /> History ({history.length})
+              </button>
+              <button onClick={() => setConfirm({ kind: "reset" })}
+                className="text-xs px-2.5 py-1.5 rounded-md border border-amber-300 text-amber-700 hover:bg-amber-50 inline-flex items-center gap-1">
+                <RotateCcw size={12} /> Reset Defaults
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => { setEditMode(!editMode); if (!editMode) onEditStats(); }}
+            className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors ${editMode ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted text-muted-foreground"}`}>
+            <Edit2 size={14} /> {editMode ? "Editing..." : "Edit Stats"}
+          </button>
+        </div>
       </div>
 
-      {/* KPI Cards — show 0 explicitly */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card) => (
           <div key={card.label}
@@ -281,9 +401,9 @@ export default function DashboardTab({
         </div>
       </div>
 
-      {/* Middle Row: Analytics + Insight */}
+      {/* Middle Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Live Analytics — Hero */}
+        {/* Live Analytics */}
         <div className="bg-gradient-to-br from-emerald-50 via-card to-card dark:from-emerald-950/30 rounded-xl border border-border p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp size={18} className="text-primary" />
@@ -327,7 +447,8 @@ export default function DashboardTab({
               {globalEditMode ? (
                 <input
                   value={titleDraft}
-                  onChange={(e) => { setTitleDraft(e.target.value); debouncedTitle(e.target.value); }}
+                  maxLength={80}
+                  onChange={(e) => { setTitleDraft(e.target.value); if (autoSave) debTitle(e.target.value); }}
                   className="font-semibold text-foreground bg-transparent border-b border-dashed border-border focus:outline-none focus:border-primary text-sm flex-1 min-w-0"
                   placeholder="Card title..."
                 />
@@ -336,7 +457,11 @@ export default function DashboardTab({
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {savedFlash === "title" && <span className="text-[10px] text-emerald-600 inline-flex items-center gap-0.5"><Check size={10}/>Saved</span>}
+              {savedFlash === "insightTitle" && <span className="text-[10px] text-emerald-600 inline-flex items-center gap-0.5"><Check size={10}/>Saved</span>}
+              {globalEditMode && !autoSave && titleDraft !== insightTitle && (
+                <button onClick={() => setConfirm({ kind: "insightTitle", value: titleDraft })}
+                  className="text-[10px] px-2 py-0.5 rounded border border-border text-primary hover:bg-muted">Save</button>
+              )}
               {globalEditMode && (
                 <span className="text-[10px] uppercase tracking-wider text-primary font-semibold">Admin</span>
               )}
@@ -347,19 +472,22 @@ export default function DashboardTab({
               <div className="w-full space-y-2">
                 <textarea
                   value={editInsight}
-                  onChange={(e) => { setEditInsight(e.target.value); debouncedInsight(e.target.value); }}
+                  maxLength={500}
+                  onChange={(e) => { setEditInsight(e.target.value); if (autoSave) debInsight(e.target.value); }}
                   className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
                   rows={4}
                   placeholder="Tulis insight QA hari ini..."
                 />
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-muted-foreground">
-                    {savedFlash === "insight" ? <span className="text-emerald-600 inline-flex items-center gap-0.5"><Check size={10}/>Auto-saved</span> : "Auto-save aktif (debounce 600ms)"}
+                    {savedFlash === "insightText" ? <span className="text-emerald-600 inline-flex items-center gap-0.5"><Check size={10}/>Saved</span>
+                      : autoSave ? "Auto-save aktif (debounce 600ms)" : "Auto-save OFF — klik Save untuk simpan"}
+                    <span className="ml-2 opacity-60">{editInsight.length}/500</span>
                   </span>
                   <button
-                    onClick={() => setConfirm({ kind: "insight", value: editInsight })}
-                    className="text-[11px] px-2 py-1 rounded border border-border text-muted-foreground hover:bg-muted inline-flex items-center gap-1"
-                    title="Konfirmasi simpan sekarang"
+                    onClick={() => setConfirm({ kind: "insightText", value: editInsight })}
+                    disabled={editInsight === insightText}
+                    className="text-[11px] px-2 py-1 rounded border border-border text-muted-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40"
                   >
                     <Save size={11} /> Save now
                   </button>
@@ -369,6 +497,7 @@ export default function DashboardTab({
               <blockquote className="text-center italic text-muted-foreground text-base leading-relaxed px-4">"{insightText}"</blockquote>
             )}
           </div>
+
           <div className="mt-4 pt-4 border-t border-border space-y-2">
             {globalEditMode && (
               <div className="space-y-2">
@@ -376,28 +505,45 @@ export default function DashboardTab({
                   <label className="text-[10px] text-muted-foreground uppercase tracking-wide w-16 shrink-0">CTA Text</label>
                   <input
                     value={labelDraft}
-                    onChange={(e) => { setLabelDraft(e.target.value); debouncedLabel(e.target.value); }}
+                    maxLength={40}
+                    onChange={(e) => { setLabelDraft(e.target.value); if (autoSave) debLabel(e.target.value); }}
                     placeholder="Button label..."
                     className="flex-1 px-2 py-1 rounded border border-input bg-background text-xs"
                   />
-                  {savedFlash === "label" && <Check size={12} className="text-emerald-600" />}
+                  {savedFlash === "learnMoreLabel" && <Check size={12} className="text-emerald-600" />}
+                  {!autoSave && labelDraft !== learnMoreLabel && (
+                    <button onClick={() => setConfirm({ kind: "learnMoreLabel", value: labelDraft })}
+                      className="text-[10px] px-2 py-1 rounded border border-border text-primary hover:bg-muted">Save</button>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide w-16 shrink-0">URL</label>
-                  <input
-                    value={urlDraft}
-                    onChange={(e) => { setUrlDraft(e.target.value); debouncedUrl(e.target.value); }}
-                    placeholder="https://..."
-                    className="flex-1 px-2 py-1 rounded border border-input bg-background text-xs"
-                  />
-                  {savedFlash === "url" && <Check size={12} className="text-emerald-600" />}
-                  <button
-                    onClick={() => setConfirm({ kind: "url", value: urlDraft })}
-                    className="text-[10px] px-2 py-1 rounded border border-border text-muted-foreground hover:bg-muted"
-                    title="Konfirmasi simpan URL"
-                  >
-                    Confirm
-                  </button>
+                <div className="flex items-start gap-2">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide w-16 shrink-0 mt-1.5">URL</label>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={urlDraft}
+                        maxLength={500}
+                        onChange={(e) => handleUrlChange(e.target.value)}
+                        placeholder="https://drive.google.com/..."
+                        className={`flex-1 px-2 py-1 rounded border bg-background text-xs ${urlError ? "border-red-400" : "border-input"}`}
+                      />
+                      {savedFlash === "learnMoreUrl" && <Check size={12} className="text-emerald-600" />}
+                      <button
+                        onClick={handleConfirmSaveUrl}
+                        disabled={!!urlError || urlDraft === learnMoreUrl}
+                        className="text-[10px] px-2 py-1 rounded border border-border text-primary hover:bg-muted disabled:opacity-40"
+                        title="Validasi & Konfirmasi simpan URL"
+                      >
+                        Confirm
+                      </button>
+                    </div>
+                    {urlError && (
+                      <p className="text-[10px] text-red-600 inline-flex items-center gap-1"><AlertCircle size={10}/>{urlError}</p>
+                    )}
+                    {!urlError && urlDraft && (
+                      <p className="text-[10px] text-emerald-600">✓ URL valid (Google Drive/Docs/Sheets)</p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -407,31 +553,75 @@ export default function DashboardTab({
                 <ExternalLink size={12} /> {learnMoreLabel || "Learn More"}
               </a>
               {globalEditMode && (
-                <span className="text-[10px] text-muted-foreground">Auto-save aktif</span>
+                <span className="text-[10px] text-muted-foreground">{autoSave ? "Auto-save aktif" : "Manual save"}</span>
               )}
             </div>
           </div>
         </div>
       </div>
 
+      {/* History Panel */}
+      {showHistory && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={() => setShowHistory(false)}>
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <History size={16} className="text-primary" />
+                <h3 className="font-semibold text-foreground">Riwayat Perubahan Dashboard</h3>
+              </div>
+              <button onClick={() => setShowHistory(false)} className="text-xs text-muted-foreground hover:text-foreground">Tutup</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {history.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Belum ada perubahan tersimpan.</p>
+              ) : history.map((h) => (
+                <div key={h.id} className="border border-border rounded-lg p-3 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-foreground">{FIELD_LABELS[h.field]}</span>
+                    <span className="text-[10px] text-muted-foreground">{new Date(h.at).toLocaleString("id-ID")}</span>
+                  </div>
+                  <div className="text-muted-foreground">
+                    <span className="line-through opacity-60 break-all">{h.oldValue || "(kosong)"}</span>
+                    <span className="mx-1">→</span>
+                    <span className="text-foreground break-all">{h.newValue || "(kosong)"}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {history.length > 0 && (
+              <div className="p-3 border-t border-border flex justify-end">
+                <button onClick={() => { setHistory([]); saveHistory([]); }}
+                  className="text-xs px-3 py-1.5 rounded border border-border text-red-600 hover:bg-red-50">
+                  Hapus Riwayat
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <ConfirmDialog
         open={!!confirm}
-        title="Konfirmasi Simpan Perubahan"
+        title={confirm?.kind === "reset" ? "Reset ke Default" : "Konfirmasi Simpan Perubahan"}
         description={
-          confirm?.kind === "url"
+          confirm?.kind === "reset"
+            ? "Insight, judul, CTA label, dan URL akan dikembalikan ke nilai default. Lanjutkan?"
+            : confirm?.kind === "learnMoreUrl"
             ? `Simpan URL Learn More menjadi: ${confirm.value || "(kosong)"}?`
-            : confirm?.kind === "insight"
-            ? "Simpan teks insight saat ini ke localStorage?"
+            : confirm?.kind === "insightText"
+            ? "Simpan teks insight saat ini?"
+            : confirm?.kind === "insightTitle"
+            ? `Simpan judul kartu menjadi: "${confirm.value}"?`
+            : confirm?.kind === "learnMoreLabel"
+            ? `Simpan CTA label menjadi: "${confirm.value}"?`
             : "Simpan perubahan?"
         }
-        confirmLabel="Ya, Simpan"
+        variant={confirm?.kind === "reset" ? "danger" : "default"}
+        confirmLabel={confirm?.kind === "reset" ? "Ya, Reset" : "Ya, Simpan"}
         onConfirm={() => {
           if (!confirm) return;
-          if (confirm.kind === "insight") onUpdateInsight(confirm.value);
-          if (confirm.kind === "url") onUpdateLearnMoreUrl(confirm.value);
-          if (confirm.kind === "title") onUpdateInsightTitle(confirm.value);
-          if (confirm.kind === "label") onUpdateLearnMoreLabel(confirm.value);
-          flashSaved(confirm.kind);
+          if (confirm.kind === "reset") handleResetDefaults();
+          else commitField(confirm.kind, confirm.value ?? "");
           setConfirm(null);
         }}
         onCancel={() => setConfirm(null)}
