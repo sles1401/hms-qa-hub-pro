@@ -185,10 +185,10 @@ export default function DashboardTab({
     flashSaved(field);
   };
 
-  // Debounced auto-save (only when autoSave ON)
-  const debInsight = useDebouncedCallback((v: string) => commitField("insightText", v), 600);
-  const debTitle = useDebouncedCallback((v: string) => commitField("insightTitle", v), 600);
-  const debLabel = useDebouncedCallback((v: string) => commitField("learnMoreLabel", v), 600);
+  // Debounced auto-save (only when autoSave ON & value valid)
+  const debInsight = useDebouncedCallback((v: string) => { if (!validateInsight(v)) commitField("insightText", v); }, 600);
+  const debTitle = useDebouncedCallback((v: string) => { if (!validateTitle(v)) commitField("insightTitle", v); }, 600);
+  const debLabel = useDebouncedCallback((v: string) => { if (!validateLabel(v)) commitField("learnMoreLabel", v); }, 600);
   const debUrl = useDebouncedCallback((v: string) => {
     const check = isValidGoogleDriveUrl(v);
     if (!check.ok) { setUrlError(check.reason || "URL tidak valid"); return; }
