@@ -529,7 +529,7 @@ export default function DashboardTab({
                   value={titleDraft}
                   maxLength={80}
                   onChange={(e) => { setTitleDraft(e.target.value); if (autoSave) debTitle(e.target.value); }}
-                  className="font-semibold text-foreground bg-transparent border-b border-dashed border-border focus:outline-none focus:border-primary text-sm flex-1 min-w-0"
+                  className={`font-semibold text-foreground bg-transparent border-b border-dashed focus:outline-none focus:border-primary text-sm flex-1 min-w-0 ${titleError ? "border-red-400" : "border-border"}`}
                   placeholder="Card title..."
                 />
               ) : (
@@ -540,13 +540,17 @@ export default function DashboardTab({
               {savedFlash === "insightTitle" && <span className="text-[10px] text-emerald-600 inline-flex items-center gap-0.5"><Check size={10}/>Saved</span>}
               {globalEditMode && !autoSave && titleDraft !== insightTitle && (
                 <button onClick={() => setConfirm({ kind: "insightTitle", value: titleDraft })}
-                  className="text-[10px] px-2 py-0.5 rounded border border-border text-primary hover:bg-muted">Save</button>
+                  disabled={!!titleError}
+                  className="text-[10px] px-2 py-0.5 rounded border border-border text-primary hover:bg-muted disabled:opacity-40">Save</button>
               )}
               {globalEditMode && (
                 <span className="text-[10px] uppercase tracking-wider text-primary font-semibold">Admin</span>
               )}
             </div>
           </div>
+          {globalEditMode && titleError && (
+            <p className="text-[10px] text-red-600 -mt-2 mb-2 inline-flex items-center gap-1"><AlertCircle size={10}/>{titleError}</p>
+          )}
           <div className="flex-1 flex items-center justify-center">
             {insightEditing ? (
               <div className="w-full space-y-2">
@@ -554,10 +558,13 @@ export default function DashboardTab({
                   value={editInsight}
                   maxLength={500}
                   onChange={(e) => { setEditInsight(e.target.value); if (autoSave) debInsight(e.target.value); }}
-                  className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                  className={`w-full px-3 py-2 rounded-lg border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none ${insightError ? "border-red-400" : "border-input"}`}
                   rows={4}
                   placeholder="Tulis insight QA hari ini..."
                 />
+                {insightError && (
+                  <p className="text-[10px] text-red-600 inline-flex items-center gap-1"><AlertCircle size={10}/>{insightError}</p>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-muted-foreground">
                     {savedFlash === "insightText" ? <span className="text-emerald-600 inline-flex items-center gap-0.5"><Check size={10}/>Saved</span>
@@ -566,7 +573,7 @@ export default function DashboardTab({
                   </span>
                   <button
                     onClick={() => setConfirm({ kind: "insightText", value: editInsight })}
-                    disabled={editInsight === insightText}
+                    disabled={editInsight === insightText || !!insightError}
                     className="text-[11px] px-2 py-1 rounded border border-border text-muted-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40"
                   >
                     <Save size={11} /> Save now
@@ -581,20 +588,28 @@ export default function DashboardTab({
           <div className="mt-4 pt-4 border-t border-border space-y-2">
             {globalEditMode && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide w-16 shrink-0">CTA Text</label>
-                  <input
-                    value={labelDraft}
-                    maxLength={40}
-                    onChange={(e) => { setLabelDraft(e.target.value); if (autoSave) debLabel(e.target.value); }}
-                    placeholder="Button label..."
-                    className="flex-1 px-2 py-1 rounded border border-input bg-background text-xs"
-                  />
-                  {savedFlash === "learnMoreLabel" && <Check size={12} className="text-emerald-600" />}
-                  {!autoSave && labelDraft !== learnMoreLabel && (
-                    <button onClick={() => setConfirm({ kind: "learnMoreLabel", value: labelDraft })}
-                      className="text-[10px] px-2 py-1 rounded border border-border text-primary hover:bg-muted">Save</button>
-                  )}
+                <div className="flex items-start gap-2">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide w-16 shrink-0 mt-1.5">CTA Text</label>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={labelDraft}
+                        maxLength={40}
+                        onChange={(e) => { setLabelDraft(e.target.value); if (autoSave) debLabel(e.target.value); }}
+                        placeholder="Button label..."
+                        className={`flex-1 px-2 py-1 rounded border bg-background text-xs ${labelError ? "border-red-400" : "border-input"}`}
+                      />
+                      {savedFlash === "learnMoreLabel" && <Check size={12} className="text-emerald-600" />}
+                      {!autoSave && labelDraft !== learnMoreLabel && (
+                        <button onClick={() => setConfirm({ kind: "learnMoreLabel", value: labelDraft })}
+                          disabled={!!labelError}
+                          className="text-[10px] px-2 py-1 rounded border border-border text-primary hover:bg-muted disabled:opacity-40">Save</button>
+                      )}
+                    </div>
+                    {labelError && (
+                      <p className="text-[10px] text-red-600 inline-flex items-center gap-1"><AlertCircle size={10}/>{labelError}</p>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <label className="text-[10px] text-muted-foreground uppercase tracking-wide w-16 shrink-0 mt-1.5">URL</label>
@@ -605,33 +620,50 @@ export default function DashboardTab({
                         maxLength={500}
                         onChange={(e) => handleUrlChange(e.target.value)}
                         placeholder="https://drive.google.com/..."
-                        className={`flex-1 px-2 py-1 rounded border bg-background text-xs ${urlError ? "border-red-400" : "border-input"}`}
+                        className={`flex-1 px-2 py-1 rounded border bg-background text-xs ${liveUrlError ? "border-red-400" : urlDraft ? "border-emerald-400" : "border-input"}`}
                       />
                       {savedFlash === "learnMoreUrl" && <Check size={12} className="text-emerald-600" />}
                       <button
                         onClick={handleConfirmSaveUrl}
-                        disabled={!!urlError || urlDraft === learnMoreUrl}
+                        disabled={!!liveUrlError || urlDraft === learnMoreUrl}
                         className="text-[10px] px-2 py-1 rounded border border-border text-primary hover:bg-muted disabled:opacity-40"
-                        title="Validasi & Konfirmasi simpan URL"
+                        title={liveUrlError || "Validasi & Konfirmasi simpan URL"}
                       >
                         Confirm
                       </button>
                     </div>
-                    {urlError && (
-                      <p className="text-[10px] text-red-600 inline-flex items-center gap-1"><AlertCircle size={10}/>{urlError}</p>
-                    )}
-                    {!urlError && urlDraft && (
-                      <p className="text-[10px] text-emerald-600">✓ URL valid (Google Drive/Docs/Sheets)</p>
+                    {liveUrlError ? (
+                      <p className="text-[10px] text-red-600 inline-flex items-center gap-1">
+                        <ShieldAlert size={11}/> {liveUrlError}
+                      </p>
+                    ) : urlDraft ? (
+                      <p className="text-[10px] text-emerald-600 inline-flex items-center gap-1">
+                        <ShieldCheck size={11}/> URL valid (Google Drive/Docs/Sheets)
+                        {urlDraft !== learnMoreUrl && <span className="ml-1 text-amber-600">— belum disimpan, klik Confirm</span>}
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground">Masukkan URL Google Drive/Docs/Sheets</p>
                     )}
                   </div>
                 </div>
               </div>
             )}
             <div className="flex items-center justify-between gap-2">
-              <a href={learnMoreUrl || "#"} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-                <ExternalLink size={12} /> {learnMoreLabel || "Learn More"}
-              </a>
+              {savedUrlValid ? (
+                <a href={learnMoreUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+                  <ExternalLink size={12} /> {learnMoreLabel || "Learn More"}
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  title="URL Learn More tidak valid — perbaiki di Admin Mode"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+                >
+                  <Ban size={12} /> {learnMoreLabel || "Learn More"} (URL invalid)
+                </button>
+              )}
               {globalEditMode && (
                 <span className="text-[10px] text-muted-foreground">{autoSave ? "Auto-save aktif" : "Manual save"}</span>
               )}
