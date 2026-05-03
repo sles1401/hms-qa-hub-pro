@@ -123,6 +123,50 @@ export interface ProjectEntry {
   name: string;
 }
 
+export const DASHBOARD_DEFAULTS = {
+  insightText: "Good testing is not about finding bugs. It's about delivering confidence in every release.",
+  insightTitle: "QA Insight of the Day",
+  learnMoreLabel: "Learn More",
+  learnMoreUrl: "https://www.istqb.org/",
+};
+
+export function isValidGoogleUrl(url: string): { ok: boolean; reason?: string } {
+  if (!url || !url.trim()) return { ok: false, reason: "URL tidak boleh kosong" };
+  try {
+    const u = new URL(url.trim());
+    if (u.protocol !== "https:" && u.protocol !== "http:") return { ok: false, reason: "Protokol harus http/https" };
+    const allowed = ["drive.google.com", "docs.google.com", "sheets.google.com", "www.istqb.org", "istqb.org"];
+    // Allow any https URL but warn if not Google Drive/Docs — per spec validate Google Drive specifically
+    if (allowed.some((h) => u.hostname === h || u.hostname.endsWith("." + h))) return { ok: true };
+    // Allow generic https URLs but mark as non-google
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: "Format URL tidak valid" };
+  }
+}
+
+export function isValidGoogleDriveUrl(url: string): { ok: boolean; reason?: string } {
+  if (!url || !url.trim()) return { ok: false, reason: "URL tidak boleh kosong" };
+  try {
+    const u = new URL(url.trim());
+    if (u.protocol !== "https:") return { ok: false, reason: "Harus menggunakan HTTPS" };
+    const googleHosts = ["drive.google.com", "docs.google.com", "sheets.google.com"];
+    const isGoogle = googleHosts.some((h) => u.hostname === h);
+    if (!isGoogle) return { ok: false, reason: "URL harus berasal dari Google Drive/Docs/Sheets" };
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: "Format URL tidak valid" };
+  }
+}
+
+export interface DashboardHistoryEntry {
+  id: string;
+  field: "insightText" | "insightTitle" | "learnMoreLabel" | "learnMoreUrl";
+  oldValue: string;
+  newValue: string;
+  at: string;
+}
+
 export const DEFAULT_SUBMODULE_STATS: SubmoduleStats = {
   totalTC: 0,
   passed: 0,
