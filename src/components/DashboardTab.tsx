@@ -1,9 +1,55 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, Calendar, Sparkles, Check, Undo2, History, RotateCcw, AlertCircle } from "lucide-react";
+import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, Calendar, Sparkles, Check, Undo2, History, RotateCcw, AlertCircle, Download, FileJson, FileSpreadsheet, ShieldCheck, ShieldAlert, Ban } from "lucide-react";
 import { type AppStats, type SubmoduleStats, type JournalEntry, type Category, DASHBOARD_DEFAULTS, isValidGoogleDriveUrl, type DashboardHistoryEntry } from "@/lib/store";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import ConfirmDialog from "@/components/ConfirmDialog";
+
+// Field-level validators
+function validateTitle(v: string): string | null {
+  const t = v.trim();
+  if (!t) return "Judul tidak boleh kosong";
+  if (t.length < 3) return "Minimal 3 karakter";
+  if (v.length > 80) return "Maksimal 80 karakter";
+  return null;
+}
+function validateLabel(v: string): string | null {
+  const t = v.trim();
+  if (!t) return "Label tidak boleh kosong";
+  if (t.length < 2) return "Minimal 2 karakter";
+  if (v.length > 40) return "Maksimal 40 karakter";
+  return null;
+}
+function validateInsight(v: string): string | null {
+  const t = v.trim();
+  if (!t) return "Insight tidak boleh kosong";
+  if (t.length < 5) return "Minimal 5 karakter";
+  if (v.length > 500) return "Maksimal 500 karakter";
+  return null;
+}
+function validateDeadline(v: string): string | null {
+  if (!v) return null;
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return "Format tanggal tidak valid";
+  return null;
+}
+function validateName(v: string): string | null {
+  const t = v.trim();
+  if (!t) return "Nama tidak boleh kosong";
+  if (t.length > 50) return "Maksimal 50 karakter";
+  return null;
+}
+
+function downloadFile(filename: string, content: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+function csvEscape(v: string) {
+  return `"${(v ?? "").replace(/"/g, '""').replace(/\r?\n/g, " ")}"`;
+}
 
 interface Props {
   stats: AppStats;
