@@ -701,7 +701,21 @@ export default function DashboardTab({
               ))}
             </div>
             {history.length > 0 && (
-              <div className="p-3 border-t border-border flex justify-end">
+              <div className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <button onClick={exportHistoryJSON}
+                    className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
+                    <FileJson size={12} /> Export JSON
+                  </button>
+                  <button onClick={exportHistoryCSV}
+                    className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
+                    <FileSpreadsheet size={12} /> Export CSV
+                  </button>
+                  <button onClick={handleUndo}
+                    className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
+                    <Undo2 size={12} /> Undo Last
+                  </button>
+                </div>
                 <button onClick={() => { setHistory([]); saveHistory([]); }}
                   className="text-xs px-3 py-1.5 rounded border border-border text-red-600 hover:bg-red-50">
                   Hapus Riwayat
