@@ -351,17 +351,19 @@ export default function DashboardTab({
               <div>
                 <label className="text-xs text-muted-foreground">Nama Panggilan</label>
                 <input value={nameDraft} maxLength={50} onChange={(e) => setNameDraft(e.target.value)}
-                  className="w-full px-2 py-1.5 rounded border border-input bg-background text-sm mt-1" />
+                  className={`w-full px-2 py-1.5 rounded border bg-background text-sm mt-1 ${nameError ? "border-red-400" : "border-input"}`} />
+                {nameError && <p className="text-[10px] text-red-600 mt-1 inline-flex items-center gap-1"><AlertCircle size={10}/>{nameError}</p>}
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Deadline Rilis</label>
                 <input type="datetime-local" value={deadlineDraft} onChange={(e) => setDeadlineDraft(e.target.value)}
-                  className="w-full px-2 py-1.5 rounded border border-input bg-background text-sm mt-1" />
+                  className={`w-full px-2 py-1.5 rounded border bg-background text-sm mt-1 ${deadlineError ? "border-red-400" : "border-input"}`} />
+                {deadlineError && <p className="text-[10px] text-red-600 mt-1 inline-flex items-center gap-1"><AlertCircle size={10}/>{deadlineError}</p>}
               </div>
             </div>
             <div className="flex justify-end gap-2">
               <button onClick={() => setEditingProfile(false)} className="px-3 py-1 text-xs rounded border border-border text-muted-foreground">Cancel</button>
-              <button onClick={handleSaveProfile} disabled={!nameDraft.trim()} className="px-3 py-1 text-xs rounded bg-primary text-primary-foreground disabled:opacity-50">Save</button>
+              <button onClick={handleSaveProfile} disabled={!profileValid} className="px-3 py-1 text-xs rounded bg-primary text-primary-foreground disabled:opacity-50">Save</button>
             </div>
           </div>
         )}
