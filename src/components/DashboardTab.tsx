@@ -1,9 +1,55 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, Calendar, Sparkles, Check, Undo2, History, RotateCcw, AlertCircle } from "lucide-react";
+import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, Calendar, Sparkles, Check, Undo2, History, RotateCcw, AlertCircle, FileJson, FileSpreadsheet, ShieldCheck, ShieldAlert, Ban } from "lucide-react";
 import { type AppStats, type SubmoduleStats, type JournalEntry, type Category, DASHBOARD_DEFAULTS, isValidGoogleDriveUrl, type DashboardHistoryEntry } from "@/lib/store";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import ConfirmDialog from "@/components/ConfirmDialog";
+
+// Field-level validators
+function validateTitle(v: string): string | null {
+  const t = v.trim();
+  if (!t) return "Judul tidak boleh kosong";
+  if (t.length < 3) return "Minimal 3 karakter";
+  if (v.length > 80) return "Maksimal 80 karakter";
+  return null;
+}
+function validateLabel(v: string): string | null {
+  const t = v.trim();
+  if (!t) return "Label tidak boleh kosong";
+  if (t.length < 2) return "Minimal 2 karakter";
+  if (v.length > 40) return "Maksimal 40 karakter";
+  return null;
+}
+function validateInsight(v: string): string | null {
+  const t = v.trim();
+  if (!t) return "Insight tidak boleh kosong";
+  if (t.length < 5) return "Minimal 5 karakter";
+  if (v.length > 500) return "Maksimal 500 karakter";
+  return null;
+}
+function validateDeadline(v: string): string | null {
+  if (!v) return null;
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return "Format tanggal tidak valid";
+  return null;
+}
+function validateName(v: string): string | null {
+  const t = v.trim();
+  if (!t) return "Nama tidak boleh kosong";
+  if (t.length > 50) return "Maksimal 50 karakter";
+  return null;
+}
+
+function downloadFile(filename: string, content: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+function csvEscape(v: string) {
+  return `"${(v ?? "").replace(/"/g, '""').replace(/\r?\n/g, " ")}"`;
+}
 
 interface Props {
   stats: AppStats;
@@ -139,10 +185,10 @@ export default function DashboardTab({
     flashSaved(field);
   };
 
-  // Debounced auto-save (only when autoSave ON)
-  const debInsight = useDebouncedCallback((v: string) => commitField("insightText", v), 600);
-  const debTitle = useDebouncedCallback((v: string) => commitField("insightTitle", v), 600);
-  const debLabel = useDebouncedCallback((v: string) => commitField("learnMoreLabel", v), 600);
+  // Debounced auto-save (only when autoSave ON & value valid)
+  const debInsight = useDebouncedCallback((v: string) => { if (!validateInsight(v)) commitField("insightText", v); }, 600);
+  const debTitle = useDebouncedCallback((v: string) => { if (!validateTitle(v)) commitField("insightTitle", v); }, 600);
+  const debLabel = useDebouncedCallback((v: string) => { if (!validateLabel(v)) commitField("learnMoreLabel", v); }, 600);
   const debUrl = useDebouncedCallback((v: string) => {
     const check = isValidGoogleDriveUrl(v);
     if (!check.ok) { setUrlError(check.reason || "URL tidak valid"); return; }
@@ -150,14 +196,22 @@ export default function DashboardTab({
     commitField("learnMoreUrl", v);
   }, 700);
 
+  // Per-field validation (live)
+  const titleError = useMemo(() => validateTitle(titleDraft), [titleDraft]);
+  const labelError = useMemo(() => validateLabel(labelDraft), [labelDraft]);
+  const insightError = useMemo(() => validateInsight(editInsight), [editInsight]);
+  const urlValidation = useMemo(() => isValidGoogleDriveUrl(urlDraft), [urlDraft]);
+  const liveUrlError = urlValidation.ok ? null : (urlValidation.reason || "URL tidak valid");
+
+  // Saved Learn More URL validity (controls the Learn More button itself)
+  const savedUrlValid = useMemo(() => isValidGoogleDriveUrl(learnMoreUrl).ok, [learnMoreUrl]);
+
+  // Field-level state for autosave/manual + sync error display
   const handleUrlChange = (v: string) => {
     setUrlDraft(v);
-    if (!v.trim()) { setUrlError(null); }
-    else {
-      const check = isValidGoogleDriveUrl(v);
-      setUrlError(check.ok ? null : (check.reason || "URL tidak valid"));
-    }
-    if (autoSave) debUrl(v);
+    const check = isValidGoogleDriveUrl(v);
+    setUrlError(check.ok ? null : (check.reason || "URL tidak valid"));
+    if (autoSave && check.ok) debUrl(v);
   };
 
   const handleConfirmSaveUrl = () => {
@@ -166,8 +220,8 @@ export default function DashboardTab({
     setConfirm({ kind: "learnMoreUrl", value: urlDraft });
   };
 
+  // Multi-level Undo — pop most recent and restore old value
   const handleUndo = () => {
-    // Undo most recent history entry
     if (history.length === 0) return;
     const last = history[0];
     if (last.field === "insightText") onUpdateInsight(last.oldValue);
@@ -189,6 +243,28 @@ export default function DashboardTab({
     setLabelDraft(DASHBOARD_DEFAULTS.learnMoreLabel);
     setUrlDraft(DASHBOARD_DEFAULTS.learnMoreUrl);
     setUrlError(null);
+  };
+
+  // Export history
+  const exportHistoryJSON = () => {
+    if (history.length === 0) return;
+    downloadFile(
+      `dashboard-history-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify(history, null, 2),
+      "application/json"
+    );
+  };
+  const exportHistoryCSV = () => {
+    if (history.length === 0) return;
+    const header = "id,field,oldValue,newValue,at";
+    const rows = history.map((h) =>
+      [h.id, h.field, h.oldValue, h.newValue, h.at].map(csvEscape).join(",")
+    );
+    downloadFile(
+      `dashboard-history-${new Date().toISOString().slice(0, 10)}.csv`,
+      [header, ...rows].join("\n"),
+      "text/csv"
+    );
   };
 
   const insightEditing = editMode || globalEditMode;
@@ -230,11 +306,13 @@ export default function DashboardTab({
       .map(([date, count]) => ({ date: date.slice(5), entries: count }));
   }, [journalEntries]);
 
+  const nameError = useMemo(() => validateName(nameDraft), [nameDraft]);
+  const deadlineError = useMemo(() => validateDeadline(deadlineDraft), [deadlineDraft]);
+  const profileValid = !nameError && !deadlineError;
+
   const handleSaveProfile = () => {
-    const trimmed = nameDraft.trim();
-    if (!trimmed) return;
-    if (trimmed.length > 50) return;
-    onUpdateUserName(trimmed);
+    if (!profileValid) return;
+    onUpdateUserName(nameDraft.trim());
     onUpdateDeadline(deadlineDraft);
     setEditingProfile(false);
   };
@@ -273,17 +351,19 @@ export default function DashboardTab({
               <div>
                 <label className="text-xs text-muted-foreground">Nama Panggilan</label>
                 <input value={nameDraft} maxLength={50} onChange={(e) => setNameDraft(e.target.value)}
-                  className="w-full px-2 py-1.5 rounded border border-input bg-background text-sm mt-1" />
+                  className={`w-full px-2 py-1.5 rounded border bg-background text-sm mt-1 ${nameError ? "border-red-400" : "border-input"}`} />
+                {nameError && <p className="text-[10px] text-red-600 mt-1 inline-flex items-center gap-1"><AlertCircle size={10}/>{nameError}</p>}
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Deadline Rilis</label>
                 <input type="datetime-local" value={deadlineDraft} onChange={(e) => setDeadlineDraft(e.target.value)}
-                  className="w-full px-2 py-1.5 rounded border border-input bg-background text-sm mt-1" />
+                  className={`w-full px-2 py-1.5 rounded border bg-background text-sm mt-1 ${deadlineError ? "border-red-400" : "border-input"}`} />
+                {deadlineError && <p className="text-[10px] text-red-600 mt-1 inline-flex items-center gap-1"><AlertCircle size={10}/>{deadlineError}</p>}
               </div>
             </div>
             <div className="flex justify-end gap-2">
               <button onClick={() => setEditingProfile(false)} className="px-3 py-1 text-xs rounded border border-border text-muted-foreground">Cancel</button>
-              <button onClick={handleSaveProfile} disabled={!nameDraft.trim()} className="px-3 py-1 text-xs rounded bg-primary text-primary-foreground disabled:opacity-50">Save</button>
+              <button onClick={handleSaveProfile} disabled={!profileValid} className="px-3 py-1 text-xs rounded bg-primary text-primary-foreground disabled:opacity-50">Save</button>
             </div>
           </div>
         )}
@@ -449,7 +529,7 @@ export default function DashboardTab({
                   value={titleDraft}
                   maxLength={80}
                   onChange={(e) => { setTitleDraft(e.target.value); if (autoSave) debTitle(e.target.value); }}
-                  className="font-semibold text-foreground bg-transparent border-b border-dashed border-border focus:outline-none focus:border-primary text-sm flex-1 min-w-0"
+                  className={`font-semibold text-foreground bg-transparent border-b border-dashed focus:outline-none focus:border-primary text-sm flex-1 min-w-0 ${titleError ? "border-red-400" : "border-border"}`}
                   placeholder="Card title..."
                 />
               ) : (
@@ -460,13 +540,17 @@ export default function DashboardTab({
               {savedFlash === "insightTitle" && <span className="text-[10px] text-emerald-600 inline-flex items-center gap-0.5"><Check size={10}/>Saved</span>}
               {globalEditMode && !autoSave && titleDraft !== insightTitle && (
                 <button onClick={() => setConfirm({ kind: "insightTitle", value: titleDraft })}
-                  className="text-[10px] px-2 py-0.5 rounded border border-border text-primary hover:bg-muted">Save</button>
+                  disabled={!!titleError}
+                  className="text-[10px] px-2 py-0.5 rounded border border-border text-primary hover:bg-muted disabled:opacity-40">Save</button>
               )}
               {globalEditMode && (
                 <span className="text-[10px] uppercase tracking-wider text-primary font-semibold">Admin</span>
               )}
             </div>
           </div>
+          {globalEditMode && titleError && (
+            <p className="text-[10px] text-red-600 -mt-2 mb-2 inline-flex items-center gap-1"><AlertCircle size={10}/>{titleError}</p>
+          )}
           <div className="flex-1 flex items-center justify-center">
             {insightEditing ? (
               <div className="w-full space-y-2">
@@ -474,10 +558,13 @@ export default function DashboardTab({
                   value={editInsight}
                   maxLength={500}
                   onChange={(e) => { setEditInsight(e.target.value); if (autoSave) debInsight(e.target.value); }}
-                  className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                  className={`w-full px-3 py-2 rounded-lg border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none ${insightError ? "border-red-400" : "border-input"}`}
                   rows={4}
                   placeholder="Tulis insight QA hari ini..."
                 />
+                {insightError && (
+                  <p className="text-[10px] text-red-600 inline-flex items-center gap-1"><AlertCircle size={10}/>{insightError}</p>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-muted-foreground">
                     {savedFlash === "insightText" ? <span className="text-emerald-600 inline-flex items-center gap-0.5"><Check size={10}/>Saved</span>
@@ -486,7 +573,7 @@ export default function DashboardTab({
                   </span>
                   <button
                     onClick={() => setConfirm({ kind: "insightText", value: editInsight })}
-                    disabled={editInsight === insightText}
+                    disabled={editInsight === insightText || !!insightError}
                     className="text-[11px] px-2 py-1 rounded border border-border text-muted-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40"
                   >
                     <Save size={11} /> Save now
@@ -501,20 +588,28 @@ export default function DashboardTab({
           <div className="mt-4 pt-4 border-t border-border space-y-2">
             {globalEditMode && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide w-16 shrink-0">CTA Text</label>
-                  <input
-                    value={labelDraft}
-                    maxLength={40}
-                    onChange={(e) => { setLabelDraft(e.target.value); if (autoSave) debLabel(e.target.value); }}
-                    placeholder="Button label..."
-                    className="flex-1 px-2 py-1 rounded border border-input bg-background text-xs"
-                  />
-                  {savedFlash === "learnMoreLabel" && <Check size={12} className="text-emerald-600" />}
-                  {!autoSave && labelDraft !== learnMoreLabel && (
-                    <button onClick={() => setConfirm({ kind: "learnMoreLabel", value: labelDraft })}
-                      className="text-[10px] px-2 py-1 rounded border border-border text-primary hover:bg-muted">Save</button>
-                  )}
+                <div className="flex items-start gap-2">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide w-16 shrink-0 mt-1.5">CTA Text</label>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={labelDraft}
+                        maxLength={40}
+                        onChange={(e) => { setLabelDraft(e.target.value); if (autoSave) debLabel(e.target.value); }}
+                        placeholder="Button label..."
+                        className={`flex-1 px-2 py-1 rounded border bg-background text-xs ${labelError ? "border-red-400" : "border-input"}`}
+                      />
+                      {savedFlash === "learnMoreLabel" && <Check size={12} className="text-emerald-600" />}
+                      {!autoSave && labelDraft !== learnMoreLabel && (
+                        <button onClick={() => setConfirm({ kind: "learnMoreLabel", value: labelDraft })}
+                          disabled={!!labelError}
+                          className="text-[10px] px-2 py-1 rounded border border-border text-primary hover:bg-muted disabled:opacity-40">Save</button>
+                      )}
+                    </div>
+                    {labelError && (
+                      <p className="text-[10px] text-red-600 inline-flex items-center gap-1"><AlertCircle size={10}/>{labelError}</p>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <label className="text-[10px] text-muted-foreground uppercase tracking-wide w-16 shrink-0 mt-1.5">URL</label>
@@ -525,33 +620,50 @@ export default function DashboardTab({
                         maxLength={500}
                         onChange={(e) => handleUrlChange(e.target.value)}
                         placeholder="https://drive.google.com/..."
-                        className={`flex-1 px-2 py-1 rounded border bg-background text-xs ${urlError ? "border-red-400" : "border-input"}`}
+                        className={`flex-1 px-2 py-1 rounded border bg-background text-xs ${liveUrlError ? "border-red-400" : urlDraft ? "border-emerald-400" : "border-input"}`}
                       />
                       {savedFlash === "learnMoreUrl" && <Check size={12} className="text-emerald-600" />}
                       <button
                         onClick={handleConfirmSaveUrl}
-                        disabled={!!urlError || urlDraft === learnMoreUrl}
+                        disabled={!!liveUrlError || urlDraft === learnMoreUrl}
                         className="text-[10px] px-2 py-1 rounded border border-border text-primary hover:bg-muted disabled:opacity-40"
-                        title="Validasi & Konfirmasi simpan URL"
+                        title={liveUrlError || "Validasi & Konfirmasi simpan URL"}
                       >
                         Confirm
                       </button>
                     </div>
-                    {urlError && (
-                      <p className="text-[10px] text-red-600 inline-flex items-center gap-1"><AlertCircle size={10}/>{urlError}</p>
-                    )}
-                    {!urlError && urlDraft && (
-                      <p className="text-[10px] text-emerald-600">✓ URL valid (Google Drive/Docs/Sheets)</p>
+                    {liveUrlError ? (
+                      <p className="text-[10px] text-red-600 inline-flex items-center gap-1">
+                        <ShieldAlert size={11}/> {liveUrlError}
+                      </p>
+                    ) : urlDraft ? (
+                      <p className="text-[10px] text-emerald-600 inline-flex items-center gap-1">
+                        <ShieldCheck size={11}/> URL valid (Google Drive/Docs/Sheets)
+                        {urlDraft !== learnMoreUrl && <span className="ml-1 text-amber-600">— belum disimpan, klik Confirm</span>}
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground">Masukkan URL Google Drive/Docs/Sheets</p>
                     )}
                   </div>
                 </div>
               </div>
             )}
             <div className="flex items-center justify-between gap-2">
-              <a href={learnMoreUrl || "#"} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-                <ExternalLink size={12} /> {learnMoreLabel || "Learn More"}
-              </a>
+              {savedUrlValid ? (
+                <a href={learnMoreUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+                  <ExternalLink size={12} /> {learnMoreLabel || "Learn More"}
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  title="URL Learn More tidak valid — perbaiki di Admin Mode"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+                >
+                  <Ban size={12} /> {learnMoreLabel || "Learn More"} (URL invalid)
+                </button>
+              )}
               {globalEditMode && (
                 <span className="text-[10px] text-muted-foreground">{autoSave ? "Auto-save aktif" : "Manual save"}</span>
               )}
@@ -589,7 +701,21 @@ export default function DashboardTab({
               ))}
             </div>
             {history.length > 0 && (
-              <div className="p-3 border-t border-border flex justify-end">
+              <div className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <button onClick={exportHistoryJSON}
+                    className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
+                    <FileJson size={12} /> Export JSON
+                  </button>
+                  <button onClick={exportHistoryCSV}
+                    className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
+                    <FileSpreadsheet size={12} /> Export CSV
+                  </button>
+                  <button onClick={handleUndo}
+                    className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
+                    <Undo2 size={12} /> Undo Last
+                  </button>
+                </div>
                 <button onClick={() => { setHistory([]); saveHistory([]); }}
                   className="text-xs px-3 py-1.5 rounded border border-border text-red-600 hover:bg-red-50">
                   Hapus Riwayat
