@@ -162,21 +162,21 @@ export default function DashboardTab({
   useEffect(() => { setTitleDraft(insightTitle); }, [insightTitle]);
   useEffect(() => { setLabelDraft(learnMoreLabel); }, [learnMoreLabel]);
 
-  const recordHistory = (field: FieldKey, oldValue: string, newValue: string) => {
+  const recordHistory = (field: FieldKey, oldValue: string, newValue: string, source: HistorySource = "manual") => {
     if (oldValue === newValue) return;
     const entry: DashboardHistoryEntry = {
       id: `h-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      field, oldValue, newValue, at: new Date().toISOString(),
+      field, oldValue, newValue, at: new Date().toISOString(), source,
     };
     const next = [entry, ...history].slice(0, HISTORY_MAX);
     setHistory(next); saveHistory(next);
   };
 
-  const commitField = (field: FieldKey, newValue: string) => {
+  const commitField = (field: FieldKey, newValue: string, source: HistorySource = "manual") => {
     const current = { insightText, insightTitle, learnMoreLabel, learnMoreUrl }[field];
     if (current === newValue) return;
     lastSnapshot.current[field] = current;
-    recordHistory(field, current, newValue);
+    recordHistory(field, current, newValue, source);
     if (field === "insightText") onUpdateInsight(newValue);
     if (field === "insightTitle") onUpdateInsightTitle(newValue);
     if (field === "learnMoreLabel") onUpdateLearnMoreLabel(newValue);
@@ -184,15 +184,15 @@ export default function DashboardTab({
     flashSaved(field);
   };
 
-  // Debounced auto-save (only when autoSave ON & value valid)
-  const debInsight = useDebouncedCallback((v: string) => { if (!validateInsight(v)) commitField("insightText", v); }, 600);
-  const debTitle = useDebouncedCallback((v: string) => { if (!validateTitle(v)) commitField("insightTitle", v); }, 600);
-  const debLabel = useDebouncedCallback((v: string) => { if (!validateLabel(v)) commitField("learnMoreLabel", v); }, 600);
+  // Debounced auto-save (only when autoSave ON & value valid) — tagged as "auto"
+  const debInsight = useDebouncedCallback((v: string) => { if (!validateInsight(v)) commitField("insightText", v, "auto"); }, 600);
+  const debTitle = useDebouncedCallback((v: string) => { if (!validateTitle(v)) commitField("insightTitle", v, "auto"); }, 600);
+  const debLabel = useDebouncedCallback((v: string) => { if (!validateLabel(v)) commitField("learnMoreLabel", v, "auto"); }, 600);
   const debUrl = useDebouncedCallback((v: string) => {
     const check = isValidGoogleDriveUrl(v);
     if (!check.ok) { setUrlError(check.reason || "URL tidak valid"); return; }
     setUrlError(null);
-    commitField("learnMoreUrl", v);
+    commitField("learnMoreUrl", v, "auto");
   }, 700);
 
   // Per-field validation (live)
