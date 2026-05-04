@@ -419,11 +419,20 @@ export default function Sidebar({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-sidebar-border">
-          <p className="text-[10px] text-sidebar-muted text-center leading-relaxed">
-            Developed by <span className="text-emerald-400 font-medium">Suryani Lestari</span>
-            <br />QA Engineer
-          </p>
+        <div className="p-4 border-t border-sidebar-border space-y-2">
+          <div className="text-[11px] text-sidebar-foreground text-center leading-relaxed">
+            <p className="font-semibold">Suryani Lestari</p>
+            <p className="text-sidebar-muted">QA Engineer · HMS QA HUB</p>
+          </div>
+          <div className="text-[10px] text-sidebar-muted text-center space-y-0.5">
+            <p>📧 <a href="mailto:suryani.qa@hms.local" className="hover:text-emerald-400 transition-colors">suryani.qa@hms.local</a></p>
+            <p>💼 Internal QA Team</p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-1 pt-1">
+            {["#HMSQAHUB", "#QAEngineer", "#SoftwareTesting", "#QualityAssurance"].map((tag) => (
+              <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded bg-sidebar-accent text-emerald-300">{tag}</span>
+            ))}
+          </div>
         </div>
       </aside>
     </>
