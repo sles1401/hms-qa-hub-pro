@@ -223,20 +223,43 @@ export default function DashboardTab({
   const handleUndo = () => {
     if (history.length === 0) return;
     const last = history[0];
+    const current = { insightText, insightTitle, learnMoreLabel, learnMoreUrl }[last.field];
     if (last.field === "insightText") onUpdateInsight(last.oldValue);
     if (last.field === "insightTitle") onUpdateInsightTitle(last.oldValue);
     if (last.field === "learnMoreLabel") onUpdateLearnMoreLabel(last.oldValue);
     if (last.field === "learnMoreUrl") onUpdateLearnMoreUrl(last.oldValue);
-    const next = history.slice(1);
+    const undoEntry: DashboardHistoryEntry = {
+      id: `h-${Date.now()}-undo`, field: last.field, oldValue: current, newValue: last.oldValue,
+      at: new Date().toISOString(), source: "undo",
+    };
+    const next = [undoEntry, ...history.slice(1)].slice(0, HISTORY_MAX);
     setHistory(next); saveHistory(next);
     flashSaved("undo");
   };
 
+  // Rollback to a specific entry (restore its oldValue)
+  const handleRollback = (entryId: string) => {
+    const target = history.find((h) => h.id === entryId);
+    if (!target) return;
+    const current = { insightText, insightTitle, learnMoreLabel, learnMoreUrl }[target.field];
+    if (target.field === "insightText") { onUpdateInsight(target.oldValue); setEditInsight(target.oldValue); }
+    if (target.field === "insightTitle") { onUpdateInsightTitle(target.oldValue); setTitleDraft(target.oldValue); }
+    if (target.field === "learnMoreLabel") { onUpdateLearnMoreLabel(target.oldValue); setLabelDraft(target.oldValue); }
+    if (target.field === "learnMoreUrl") { onUpdateLearnMoreUrl(target.oldValue); setUrlDraft(target.oldValue); setUrlError(null); }
+    const rollbackEntry: DashboardHistoryEntry = {
+      id: `h-${Date.now()}-rb`, field: target.field, oldValue: current, newValue: target.oldValue,
+      at: new Date().toISOString(), source: "rollback",
+    };
+    const next = [rollbackEntry, ...history].slice(0, HISTORY_MAX);
+    setHistory(next); saveHistory(next);
+    flashSaved("rollback");
+  };
+
   const handleResetDefaults = () => {
-    commitField("insightText", DASHBOARD_DEFAULTS.insightText);
-    commitField("insightTitle", DASHBOARD_DEFAULTS.insightTitle);
-    commitField("learnMoreLabel", DASHBOARD_DEFAULTS.learnMoreLabel);
-    commitField("learnMoreUrl", DASHBOARD_DEFAULTS.learnMoreUrl);
+    commitField("insightText", DASHBOARD_DEFAULTS.insightText, "reset");
+    commitField("insightTitle", DASHBOARD_DEFAULTS.insightTitle, "reset");
+    commitField("learnMoreLabel", DASHBOARD_DEFAULTS.learnMoreLabel, "reset");
+    commitField("learnMoreUrl", DASHBOARD_DEFAULTS.learnMoreUrl, "reset");
     setEditInsight(DASHBOARD_DEFAULTS.insightText);
     setTitleDraft(DASHBOARD_DEFAULTS.insightTitle);
     setLabelDraft(DASHBOARD_DEFAULTS.learnMoreLabel);
@@ -255,15 +278,84 @@ export default function DashboardTab({
   };
   const exportHistoryCSV = () => {
     if (history.length === 0) return;
-    const header = "id,field,oldValue,newValue,at";
+    const header = "id,field,oldValue,newValue,at,source";
     const rows = history.map((h) =>
-      [h.id, h.field, h.oldValue, h.newValue, h.at].map(csvEscape).join(",")
+      [h.id, h.field, h.oldValue, h.newValue, h.at, h.source ?? ""].map(csvEscape).join(",")
     );
     downloadFile(
       `dashboard-history-${new Date().toISOString().slice(0, 10)}.csv`,
       [header, ...rows].join("\n"),
       "text/csv"
     );
+  };
+
+  // Import history (JSON/CSV) with strict schema validation
+  const VALID_FIELDS: FieldKey[] = ["insightText", "insightTitle", "learnMoreLabel", "learnMoreUrl"];
+  const VALID_SOURCES: HistorySource[] = ["auto", "manual", "reset", "rollback", "undo", "import"];
+  const validateEntry = (e: any): DashboardHistoryEntry | null => {
+    if (!e || typeof e !== "object") return null;
+    if (!VALID_FIELDS.includes(e.field)) return null;
+    if (typeof e.oldValue !== "string" || typeof e.newValue !== "string") return null;
+    if (typeof e.at !== "string" || isNaN(new Date(e.at).getTime())) return null;
+    return {
+      id: typeof e.id === "string" && e.id ? e.id : `h-imp-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+      field: e.field, oldValue: e.oldValue, newValue: e.newValue, at: e.at,
+      source: (VALID_SOURCES.includes(e.source) ? e.source : "import") as HistorySource,
+    };
+  };
+  const parseCSV = (text: string): any[] => {
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
+    return lines.slice(1).map((line) => {
+      const fields: string[] = []; let cur = ""; let inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (inQ) {
+          if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+          else if (c === '"') { inQ = false; }
+          else cur += c;
+        } else {
+          if (c === '"') inQ = true;
+          else if (c === ",") { fields.push(cur); cur = ""; }
+          else cur += c;
+        }
+      }
+      fields.push(cur);
+      const obj: any = {};
+      headers.forEach((h, i) => obj[h] = fields[i] ?? "");
+      return obj;
+    });
+  };
+  const handleImportHistory = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,.csv,application/json,text/csv";
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const text = ev.target?.result as string;
+          const raw: any[] = file.name.toLowerCase().endsWith(".csv") ? parseCSV(text) : JSON.parse(text);
+          if (!Array.isArray(raw)) throw new Error("Format harus array");
+          const valid = raw.map(validateEntry).filter((x): x is DashboardHistoryEntry => !!x);
+          if (valid.length === 0) { alert("Tidak ada entry valid di file ini."); return; }
+          const map = new Map<string, DashboardHistoryEntry>();
+          [...valid, ...history].forEach((h) => map.set(h.id, h));
+          const merged = Array.from(map.values())
+            .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+            .slice(0, HISTORY_MAX);
+          setHistory(merged); saveHistory(merged);
+          alert(`Berhasil mengimpor ${valid.length} entry. Total riwayat: ${merged.length}.`);
+        } catch (err: any) {
+          alert(`Gagal mengimpor: ${err?.message || "format tidak valid"}`);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   };
 
   const insightEditing = editMode || globalEditMode;
