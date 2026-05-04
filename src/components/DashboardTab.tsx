@@ -834,7 +834,7 @@ export default function DashboardTab({
                   <Undo2 size={12} /> Undo Last
                 </button>
               </div>
-              <button onClick={() => { if (confirm.length === 0 || window.confirm("Hapus semua riwayat perubahan?")) { setHistory([]); saveHistory([]); } }}
+              <button onClick={() => { if (window.confirm("Hapus semua riwayat perubahan?")) { setHistory([]); saveHistory([]); } }}
                 disabled={history.length === 0}
                 className="text-xs px-3 py-1.5 rounded border border-border text-red-600 hover:bg-red-50 disabled:opacity-40">
                 Hapus Riwayat
