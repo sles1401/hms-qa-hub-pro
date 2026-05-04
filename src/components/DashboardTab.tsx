@@ -759,6 +759,11 @@ export default function DashboardTab({
                 <span className="text-[10px] text-muted-foreground">{autoSave ? "Auto-save aktif" : "Manual save"}</span>
               )}
             </div>
+            {savedUrlValid && learnMoreUrl && (
+              <div className="mt-2">
+                <UrlHealthBadge url={learnMoreUrl} label="Learn More" />
+              </div>
+            )}
           </div>
         </div>
       </div>
