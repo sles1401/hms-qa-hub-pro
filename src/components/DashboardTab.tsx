@@ -777,42 +777,69 @@ export default function DashboardTab({
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               {history.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">Belum ada perubahan tersimpan.</p>
-              ) : history.map((h) => (
-                <div key={h.id} className="border border-border rounded-lg p-3 text-xs space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-foreground">{FIELD_LABELS[h.field]}</span>
-                    <span className="text-[10px] text-muted-foreground">{new Date(h.at).toLocaleString("id-ID")}</span>
+              ) : history.map((h) => {
+                const src = h.source ?? "manual";
+                const srcStyle = src === "auto" ? "bg-blue-100 text-blue-700" :
+                  src === "manual" ? "bg-emerald-100 text-emerald-700" :
+                  src === "rollback" ? "bg-purple-100 text-purple-700" :
+                  src === "undo" ? "bg-amber-100 text-amber-700" :
+                  src === "reset" ? "bg-red-100 text-red-700" :
+                  "bg-muted text-muted-foreground";
+                const SrcIcon = src === "auto" ? Zap : src === "manual" ? Hand : src === "rollback" ? RotateCcw : src === "undo" ? Undo2 : src === "reset" ? RefreshCw : Upload;
+                return (
+                  <div key={h.id} className="border border-border rounded-lg p-3 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-foreground">{FIELD_LABELS[h.field]}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${srcStyle}`}>
+                          <SrcIcon size={9} /> {src.toUpperCase()}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">{new Date(h.at).toLocaleString("id-ID")}</span>
+                    </div>
+                    <div className="text-muted-foreground">
+                      <span className="line-through opacity-60 break-all">{h.oldValue || "(kosong)"}</span>
+                      <span className="mx-1">→</span>
+                      <span className="text-foreground break-all">{h.newValue || "(kosong)"}</span>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => handleRollback(h.id)}
+                        title="Kembalikan ke nilai sebelum perubahan ini"
+                        className="text-[10px] px-2 py-0.5 rounded border border-border text-purple-700 hover:bg-purple-50 inline-flex items-center gap-1"
+                      >
+                        <RotateCcw size={10} /> Rollback ke titik ini
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-muted-foreground">
-                    <span className="line-through opacity-60 break-all">{h.oldValue || "(kosong)"}</span>
-                    <span className="mx-1">→</span>
-                    <span className="text-foreground break-all">{h.newValue || "(kosong)"}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-            {history.length > 0 && (
-              <div className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <button onClick={exportHistoryJSON}
-                    className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
-                    <FileJson size={12} /> Export JSON
-                  </button>
-                  <button onClick={exportHistoryCSV}
-                    className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
-                    <FileSpreadsheet size={12} /> Export CSV
-                  </button>
-                  <button onClick={handleUndo}
-                    className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
-                    <Undo2 size={12} /> Undo Last
-                  </button>
-                </div>
-                <button onClick={() => { setHistory([]); saveHistory([]); }}
-                  className="text-xs px-3 py-1.5 rounded border border-border text-red-600 hover:bg-red-50">
-                  Hapus Riwayat
+            <div className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button onClick={exportHistoryJSON} disabled={history.length === 0}
+                  className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
+                  <FileJson size={12} /> Export JSON
+                </button>
+                <button onClick={exportHistoryCSV} disabled={history.length === 0}
+                  className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
+                  <FileSpreadsheet size={12} /> Export CSV
+                </button>
+                <button onClick={handleImportHistory}
+                  className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
+                  <Upload size={12} /> Import JSON/CSV
+                </button>
+                <button onClick={handleUndo} disabled={history.length === 0}
+                  className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
+                  <Undo2 size={12} /> Undo Last
                 </button>
               </div>
-            )}
+              <button onClick={() => { if (confirm.length === 0 || window.confirm("Hapus semua riwayat perubahan?")) { setHistory([]); saveHistory([]); } }}
+                disabled={history.length === 0}
+                className="text-xs px-3 py-1.5 rounded border border-border text-red-600 hover:bg-red-50 disabled:opacity-40">
+                Hapus Riwayat
+              </button>
+            </div>
           </div>
         </div>
       )}
