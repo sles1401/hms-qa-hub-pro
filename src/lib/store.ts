@@ -159,12 +159,30 @@ export function isValidGoogleDriveUrl(url: string): { ok: boolean; reason?: stri
   }
 }
 
+export type HistorySource = "auto" | "manual" | "reset" | "rollback" | "undo" | "import";
+
 export interface DashboardHistoryEntry {
   id: string;
   field: "insightText" | "insightTitle" | "learnMoreLabel" | "learnMoreUrl";
   oldValue: string;
   newValue: string;
   at: string;
+  source?: HistorySource;
+}
+
+// Strict deadline validator: ISO local datetime, within +/- 5 years window
+export function validateDeadlineStrict(v: string): { ok: boolean; reason?: string } {
+  if (!v) return { ok: true };
+  // datetime-local format YYYY-MM-DDTHH:mm
+  const re = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+  if (!re.test(v)) return { ok: false, reason: "Format harus YYYY-MM-DDTHH:mm" };
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return { ok: false, reason: "Tanggal tidak valid" };
+  const now = Date.now();
+  const fiveYears = 5 * 365 * 24 * 3600 * 1000;
+  if (d.getTime() < now - fiveYears) return { ok: false, reason: "Tanggal terlalu jauh di masa lalu (>5 tahun)" };
+  if (d.getTime() > now + fiveYears) return { ok: false, reason: "Tanggal terlalu jauh di masa depan (>5 tahun)" };
+  return { ok: true };
 }
 
 export const DEFAULT_SUBMODULE_STATS: SubmoduleStats = {

@@ -1,5 +1,6 @@
 import { ExternalLink, Edit2, FileText, Table } from "lucide-react";
 import { useState } from "react";
+import UrlHealthBadge from "@/components/UrlHealthBadge";
 
 interface Props {
   title: string;
@@ -40,18 +41,21 @@ export default function EmbedTab({ title, description, url, onUpdateUrl, type }:
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-foreground">{title}</h2>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
-        <button
-          onClick={() => { setDraft(url); setEditing(true); }}
-          className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-border hover:bg-muted transition-colors text-muted-foreground"
-        >
-          <Edit2 size={14} />
-          Update Link
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {url && <UrlHealthBadge url={url} label={type === "docs" ? "Docs" : "Sheets"} />}
+          <button
+            onClick={() => { setDraft(url); setEditing(true); }}
+            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-border hover:bg-muted transition-colors text-muted-foreground"
+          >
+            <Edit2 size={14} />
+            Update Link
+          </button>
+        </div>
       </div>
 
       {editing && (

@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, Calendar, Sparkles, Check, Undo2, History, RotateCcw, AlertCircle, FileJson, FileSpreadsheet, ShieldCheck, ShieldAlert, Ban } from "lucide-react";
-import { type AppStats, type SubmoduleStats, type JournalEntry, type Category, DASHBOARD_DEFAULTS, isValidGoogleDriveUrl, type DashboardHistoryEntry } from "@/lib/store";
+import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, Calendar, Sparkles, Check, Undo2, History, RotateCcw, AlertCircle, FileJson, FileSpreadsheet, ShieldCheck, ShieldAlert, Ban, Upload, RefreshCw, Zap, Hand } from "lucide-react";
+import { type AppStats, type SubmoduleStats, type JournalEntry, type Category, DASHBOARD_DEFAULTS, isValidGoogleDriveUrl, validateDeadlineStrict, type DashboardHistoryEntry, type HistorySource } from "@/lib/store";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import UrlHealthBadge from "@/components/UrlHealthBadge";
 
 // Field-level validators
 function validateTitle(v: string): string | null {
@@ -28,10 +29,8 @@ function validateInsight(v: string): string | null {
   return null;
 }
 function validateDeadline(v: string): string | null {
-  if (!v) return null;
-  const d = new Date(v);
-  if (isNaN(d.getTime())) return "Format tanggal tidak valid";
-  return null;
+  const r = validateDeadlineStrict(v);
+  return r.ok ? null : (r.reason || "Tanggal tidak valid");
 }
 function validateName(v: string): string | null {
   const t = v.trim();
@@ -163,21 +162,21 @@ export default function DashboardTab({
   useEffect(() => { setTitleDraft(insightTitle); }, [insightTitle]);
   useEffect(() => { setLabelDraft(learnMoreLabel); }, [learnMoreLabel]);
 
-  const recordHistory = (field: FieldKey, oldValue: string, newValue: string) => {
+  const recordHistory = (field: FieldKey, oldValue: string, newValue: string, source: HistorySource = "manual") => {
     if (oldValue === newValue) return;
     const entry: DashboardHistoryEntry = {
       id: `h-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      field, oldValue, newValue, at: new Date().toISOString(),
+      field, oldValue, newValue, at: new Date().toISOString(), source,
     };
     const next = [entry, ...history].slice(0, HISTORY_MAX);
     setHistory(next); saveHistory(next);
   };
 
-  const commitField = (field: FieldKey, newValue: string) => {
+  const commitField = (field: FieldKey, newValue: string, source: HistorySource = "manual") => {
     const current = { insightText, insightTitle, learnMoreLabel, learnMoreUrl }[field];
     if (current === newValue) return;
     lastSnapshot.current[field] = current;
-    recordHistory(field, current, newValue);
+    recordHistory(field, current, newValue, source);
     if (field === "insightText") onUpdateInsight(newValue);
     if (field === "insightTitle") onUpdateInsightTitle(newValue);
     if (field === "learnMoreLabel") onUpdateLearnMoreLabel(newValue);
@@ -185,15 +184,15 @@ export default function DashboardTab({
     flashSaved(field);
   };
 
-  // Debounced auto-save (only when autoSave ON & value valid)
-  const debInsight = useDebouncedCallback((v: string) => { if (!validateInsight(v)) commitField("insightText", v); }, 600);
-  const debTitle = useDebouncedCallback((v: string) => { if (!validateTitle(v)) commitField("insightTitle", v); }, 600);
-  const debLabel = useDebouncedCallback((v: string) => { if (!validateLabel(v)) commitField("learnMoreLabel", v); }, 600);
+  // Debounced auto-save (only when autoSave ON & value valid) — tagged as "auto"
+  const debInsight = useDebouncedCallback((v: string) => { if (!validateInsight(v)) commitField("insightText", v, "auto"); }, 600);
+  const debTitle = useDebouncedCallback((v: string) => { if (!validateTitle(v)) commitField("insightTitle", v, "auto"); }, 600);
+  const debLabel = useDebouncedCallback((v: string) => { if (!validateLabel(v)) commitField("learnMoreLabel", v, "auto"); }, 600);
   const debUrl = useDebouncedCallback((v: string) => {
     const check = isValidGoogleDriveUrl(v);
     if (!check.ok) { setUrlError(check.reason || "URL tidak valid"); return; }
     setUrlError(null);
-    commitField("learnMoreUrl", v);
+    commitField("learnMoreUrl", v, "auto");
   }, 700);
 
   // Per-field validation (live)
@@ -224,20 +223,43 @@ export default function DashboardTab({
   const handleUndo = () => {
     if (history.length === 0) return;
     const last = history[0];
+    const current = { insightText, insightTitle, learnMoreLabel, learnMoreUrl }[last.field];
     if (last.field === "insightText") onUpdateInsight(last.oldValue);
     if (last.field === "insightTitle") onUpdateInsightTitle(last.oldValue);
     if (last.field === "learnMoreLabel") onUpdateLearnMoreLabel(last.oldValue);
     if (last.field === "learnMoreUrl") onUpdateLearnMoreUrl(last.oldValue);
-    const next = history.slice(1);
+    const undoEntry: DashboardHistoryEntry = {
+      id: `h-${Date.now()}-undo`, field: last.field, oldValue: current, newValue: last.oldValue,
+      at: new Date().toISOString(), source: "undo",
+    };
+    const next = [undoEntry, ...history.slice(1)].slice(0, HISTORY_MAX);
     setHistory(next); saveHistory(next);
     flashSaved("undo");
   };
 
+  // Rollback to a specific entry (restore its oldValue)
+  const handleRollback = (entryId: string) => {
+    const target = history.find((h) => h.id === entryId);
+    if (!target) return;
+    const current = { insightText, insightTitle, learnMoreLabel, learnMoreUrl }[target.field];
+    if (target.field === "insightText") { onUpdateInsight(target.oldValue); setEditInsight(target.oldValue); }
+    if (target.field === "insightTitle") { onUpdateInsightTitle(target.oldValue); setTitleDraft(target.oldValue); }
+    if (target.field === "learnMoreLabel") { onUpdateLearnMoreLabel(target.oldValue); setLabelDraft(target.oldValue); }
+    if (target.field === "learnMoreUrl") { onUpdateLearnMoreUrl(target.oldValue); setUrlDraft(target.oldValue); setUrlError(null); }
+    const rollbackEntry: DashboardHistoryEntry = {
+      id: `h-${Date.now()}-rb`, field: target.field, oldValue: current, newValue: target.oldValue,
+      at: new Date().toISOString(), source: "rollback",
+    };
+    const next = [rollbackEntry, ...history].slice(0, HISTORY_MAX);
+    setHistory(next); saveHistory(next);
+    flashSaved("rollback");
+  };
+
   const handleResetDefaults = () => {
-    commitField("insightText", DASHBOARD_DEFAULTS.insightText);
-    commitField("insightTitle", DASHBOARD_DEFAULTS.insightTitle);
-    commitField("learnMoreLabel", DASHBOARD_DEFAULTS.learnMoreLabel);
-    commitField("learnMoreUrl", DASHBOARD_DEFAULTS.learnMoreUrl);
+    commitField("insightText", DASHBOARD_DEFAULTS.insightText, "reset");
+    commitField("insightTitle", DASHBOARD_DEFAULTS.insightTitle, "reset");
+    commitField("learnMoreLabel", DASHBOARD_DEFAULTS.learnMoreLabel, "reset");
+    commitField("learnMoreUrl", DASHBOARD_DEFAULTS.learnMoreUrl, "reset");
     setEditInsight(DASHBOARD_DEFAULTS.insightText);
     setTitleDraft(DASHBOARD_DEFAULTS.insightTitle);
     setLabelDraft(DASHBOARD_DEFAULTS.learnMoreLabel);
@@ -256,15 +278,84 @@ export default function DashboardTab({
   };
   const exportHistoryCSV = () => {
     if (history.length === 0) return;
-    const header = "id,field,oldValue,newValue,at";
+    const header = "id,field,oldValue,newValue,at,source";
     const rows = history.map((h) =>
-      [h.id, h.field, h.oldValue, h.newValue, h.at].map(csvEscape).join(",")
+      [h.id, h.field, h.oldValue, h.newValue, h.at, h.source ?? ""].map(csvEscape).join(",")
     );
     downloadFile(
       `dashboard-history-${new Date().toISOString().slice(0, 10)}.csv`,
       [header, ...rows].join("\n"),
       "text/csv"
     );
+  };
+
+  // Import history (JSON/CSV) with strict schema validation
+  const VALID_FIELDS: FieldKey[] = ["insightText", "insightTitle", "learnMoreLabel", "learnMoreUrl"];
+  const VALID_SOURCES: HistorySource[] = ["auto", "manual", "reset", "rollback", "undo", "import"];
+  const validateEntry = (e: any): DashboardHistoryEntry | null => {
+    if (!e || typeof e !== "object") return null;
+    if (!VALID_FIELDS.includes(e.field)) return null;
+    if (typeof e.oldValue !== "string" || typeof e.newValue !== "string") return null;
+    if (typeof e.at !== "string" || isNaN(new Date(e.at).getTime())) return null;
+    return {
+      id: typeof e.id === "string" && e.id ? e.id : `h-imp-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+      field: e.field, oldValue: e.oldValue, newValue: e.newValue, at: e.at,
+      source: (VALID_SOURCES.includes(e.source) ? e.source : "import") as HistorySource,
+    };
+  };
+  const parseCSV = (text: string): any[] => {
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
+    return lines.slice(1).map((line) => {
+      const fields: string[] = []; let cur = ""; let inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (inQ) {
+          if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+          else if (c === '"') { inQ = false; }
+          else cur += c;
+        } else {
+          if (c === '"') inQ = true;
+          else if (c === ",") { fields.push(cur); cur = ""; }
+          else cur += c;
+        }
+      }
+      fields.push(cur);
+      const obj: any = {};
+      headers.forEach((h, i) => obj[h] = fields[i] ?? "");
+      return obj;
+    });
+  };
+  const handleImportHistory = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,.csv,application/json,text/csv";
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const text = ev.target?.result as string;
+          const raw: any[] = file.name.toLowerCase().endsWith(".csv") ? parseCSV(text) : JSON.parse(text);
+          if (!Array.isArray(raw)) throw new Error("Format harus array");
+          const valid = raw.map(validateEntry).filter((x): x is DashboardHistoryEntry => !!x);
+          if (valid.length === 0) { alert("Tidak ada entry valid di file ini."); return; }
+          const map = new Map<string, DashboardHistoryEntry>();
+          [...valid, ...history].forEach((h) => map.set(h.id, h));
+          const merged = Array.from(map.values())
+            .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+            .slice(0, HISTORY_MAX);
+          setHistory(merged); saveHistory(merged);
+          alert(`Berhasil mengimpor ${valid.length} entry. Total riwayat: ${merged.length}.`);
+        } catch (err: any) {
+          alert(`Gagal mengimpor: ${err?.message || "format tidak valid"}`);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   };
 
   const insightEditing = editMode || globalEditMode;
@@ -668,6 +759,11 @@ export default function DashboardTab({
                 <span className="text-[10px] text-muted-foreground">{autoSave ? "Auto-save aktif" : "Manual save"}</span>
               )}
             </div>
+            {savedUrlValid && learnMoreUrl && (
+              <div className="mt-2">
+                <UrlHealthBadge url={learnMoreUrl} label="Learn More" />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -686,42 +782,69 @@ export default function DashboardTab({
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               {history.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">Belum ada perubahan tersimpan.</p>
-              ) : history.map((h) => (
-                <div key={h.id} className="border border-border rounded-lg p-3 text-xs space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-foreground">{FIELD_LABELS[h.field]}</span>
-                    <span className="text-[10px] text-muted-foreground">{new Date(h.at).toLocaleString("id-ID")}</span>
+              ) : history.map((h) => {
+                const src = h.source ?? "manual";
+                const srcStyle = src === "auto" ? "bg-blue-100 text-blue-700" :
+                  src === "manual" ? "bg-emerald-100 text-emerald-700" :
+                  src === "rollback" ? "bg-purple-100 text-purple-700" :
+                  src === "undo" ? "bg-amber-100 text-amber-700" :
+                  src === "reset" ? "bg-red-100 text-red-700" :
+                  "bg-muted text-muted-foreground";
+                const SrcIcon = src === "auto" ? Zap : src === "manual" ? Hand : src === "rollback" ? RotateCcw : src === "undo" ? Undo2 : src === "reset" ? RefreshCw : Upload;
+                return (
+                  <div key={h.id} className="border border-border rounded-lg p-3 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-foreground">{FIELD_LABELS[h.field]}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${srcStyle}`}>
+                          <SrcIcon size={9} /> {src.toUpperCase()}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">{new Date(h.at).toLocaleString("id-ID")}</span>
+                    </div>
+                    <div className="text-muted-foreground">
+                      <span className="line-through opacity-60 break-all">{h.oldValue || "(kosong)"}</span>
+                      <span className="mx-1">→</span>
+                      <span className="text-foreground break-all">{h.newValue || "(kosong)"}</span>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => handleRollback(h.id)}
+                        title="Kembalikan ke nilai sebelum perubahan ini"
+                        className="text-[10px] px-2 py-0.5 rounded border border-border text-purple-700 hover:bg-purple-50 inline-flex items-center gap-1"
+                      >
+                        <RotateCcw size={10} /> Rollback ke titik ini
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-muted-foreground">
-                    <span className="line-through opacity-60 break-all">{h.oldValue || "(kosong)"}</span>
-                    <span className="mx-1">→</span>
-                    <span className="text-foreground break-all">{h.newValue || "(kosong)"}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-            {history.length > 0 && (
-              <div className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <button onClick={exportHistoryJSON}
-                    className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
-                    <FileJson size={12} /> Export JSON
-                  </button>
-                  <button onClick={exportHistoryCSV}
-                    className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
-                    <FileSpreadsheet size={12} /> Export CSV
-                  </button>
-                  <button onClick={handleUndo}
-                    className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
-                    <Undo2 size={12} /> Undo Last
-                  </button>
-                </div>
-                <button onClick={() => { setHistory([]); saveHistory([]); }}
-                  className="text-xs px-3 py-1.5 rounded border border-border text-red-600 hover:bg-red-50">
-                  Hapus Riwayat
+            <div className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button onClick={exportHistoryJSON} disabled={history.length === 0}
+                  className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
+                  <FileJson size={12} /> Export JSON
+                </button>
+                <button onClick={exportHistoryCSV} disabled={history.length === 0}
+                  className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
+                  <FileSpreadsheet size={12} /> Export CSV
+                </button>
+                <button onClick={handleImportHistory}
+                  className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
+                  <Upload size={12} /> Import JSON/CSV
+                </button>
+                <button onClick={handleUndo} disabled={history.length === 0}
+                  className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
+                  <Undo2 size={12} /> Undo Last
                 </button>
               </div>
-            )}
+              <button onClick={() => { if (window.confirm("Hapus semua riwayat perubahan?")) { setHistory([]); saveHistory([]); } }}
+                disabled={history.length === 0}
+                className="text-xs px-3 py-1.5 rounded border border-border text-red-600 hover:bg-red-50 disabled:opacity-40">
+                Hapus Riwayat
+              </button>
+            </div>
           </div>
         </div>
       )}
