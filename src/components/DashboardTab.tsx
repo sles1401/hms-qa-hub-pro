@@ -971,8 +971,19 @@ export default function DashboardTab({
                   Reset
                 </button>
               </div>
+              <div className="grid grid-cols-2 gap-2">
+                <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)}
+                  className="text-xs px-2 py-1 rounded border border-input bg-background">
+                  <option value="newest">Terbaru dulu</option>
+                  <option value="oldest">Terlama dulu</option>
+                </select>
+                <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="text-xs px-2 py-1 rounded border border-input bg-background">
+                  {[5, 10, 20, 50].map((n) => <option key={n} value={n}>{n} / halaman</option>)}
+                </select>
+              </div>
               <p className="text-[10px] text-muted-foreground">
-                Menampilkan {filteredHistory.length} dari {history.length} entry
+                Menampilkan {pagedHistory.length} dari {filteredHistory.length} (total {history.length}) · Halaman {safePage}/{totalPages}
               </p>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
