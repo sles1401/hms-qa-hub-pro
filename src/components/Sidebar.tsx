@@ -425,7 +425,7 @@ export default function Sidebar({
             <p className="text-sidebar-muted">QA Engineer · HMS QA HUB</p>
           </div>
           <div className="text-[10px] text-sidebar-muted text-center space-y-0.5">
-            <p>📧 <a href="mailto:suryani.qa@hms.local" className="hover:text-emerald-400 transition-colors">suryani.qa@hms.local</a></p>
+            <p>📧 <a href="mailto:suryanilestari123@gmail.com" className="hover:text-emerald-400 transition-colors">suryanilestari123@gmail.com</a></p>
             <p>💼 Internal QA Team</p>
           </div>
           <div className="flex flex-wrap justify-center gap-1 pt-1">
