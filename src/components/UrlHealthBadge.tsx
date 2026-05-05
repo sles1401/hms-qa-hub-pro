@@ -5,11 +5,11 @@ interface Props {
   url: string;
   label?: string;
   className?: string;
-  /** Auto-recheck interval in ms. Default 5 minutes. Set 0 to disable. */
+  /** Override interval (ms). If omitted, uses global health settings. */
   intervalMs?: number;
 }
 
-export default function UrlHealthBadge({ url, label, className = "", intervalMs = 5 * 60 * 1000 }: Props) {
+export default function UrlHealthBadge({ url, label, className = "", intervalMs }: Props) {
   const { status, message, checkedAt, recheck } = useUrlHealth(url, intervalMs);
 
   const config = {
