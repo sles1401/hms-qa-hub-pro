@@ -69,6 +69,9 @@ interface Props {
   onUpdateInsightTitle: (t: string) => void;
   learnMoreLabel: string;
   onUpdateLearnMoreLabel: (t: string) => void;
+  /** Optional: full app config snapshot for export, and importer for restore */
+  exportFullConfig?: () => any;
+  importFullConfig?: (data: any) => void;
 }
 
 type FieldKey = "insightText" | "insightTitle" | "learnMoreLabel" | "learnMoreUrl";
