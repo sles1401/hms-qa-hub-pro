@@ -376,13 +376,19 @@ export default function DashboardTab({
           if (!Array.isArray(raw)) throw new Error("Format harus array");
           const valid = raw.map(validateEntry).filter((x): x is DashboardHistoryEntry => !!x);
           if (valid.length === 0) { alert("Tidak ada entry valid di file ini."); return; }
-          const map = new Map<string, DashboardHistoryEntry>();
-          [...valid, ...history].forEach((h) => map.set(h.id, h));
-          const merged = Array.from(map.values())
-            .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-            .slice(0, HISTORY_MAX);
-          setHistory(merged); saveHistory(merged);
-          alert(`Berhasil mengimpor ${valid.length} entry. Total riwayat: ${merged.length}.`);
+          let next: DashboardHistoryEntry[];
+          if (importMode === "overwrite") {
+            if (!window.confirm(`Mode OVERWRITE: ${history.length} riwayat saat ini akan dihapus dan diganti dengan ${valid.length} entry. Lanjutkan?`)) return;
+            next = valid.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, HISTORY_MAX);
+          } else {
+            const map = new Map<string, DashboardHistoryEntry>();
+            [...valid, ...history].forEach((h) => map.set(h.id, h));
+            next = Array.from(map.values())
+              .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+              .slice(0, HISTORY_MAX);
+          }
+          setHistory(next); saveHistory(next);
+          alert(`Berhasil mengimpor ${valid.length} entry (${importMode}). Total riwayat: ${next.length}.`);
         } catch (err: any) {
           alert(`Gagal mengimpor: ${err?.message || "format tidak valid"}`);
         }
@@ -392,12 +398,12 @@ export default function DashboardTab({
     input.click();
   };
 
-  // Filtered history view
+  // Filtered + sorted history view
   const filteredHistory = useMemo(() => {
     const fromTs = filterFrom ? new Date(filterFrom).getTime() : -Infinity;
     const toTs = filterTo ? new Date(filterTo).getTime() + 86400000 : Infinity;
     const q = filterQuery.trim().toLowerCase();
-    return history.filter((h) => {
+    const list = history.filter((h) => {
       if (filterField !== "all" && h.field !== filterField) return false;
       const src = h.source ?? "manual";
       if (filterSource !== "all" && src !== filterSource) return false;
@@ -406,11 +412,24 @@ export default function DashboardTab({
       if (q && !((h.oldValue || "").toLowerCase().includes(q) || (h.newValue || "").toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [history, filterField, filterSource, filterFrom, filterTo, filterQuery]);
+    list.sort((a, b) => {
+      const da = new Date(a.at).getTime(), db = new Date(b.at).getTime();
+      return sortOrder === "newest" ? db - da : da - db;
+    });
+    return list;
+  }, [history, filterField, filterSource, filterFrom, filterTo, filterQuery, sortOrder]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredHistory.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedHistory = useMemo(
+    () => filteredHistory.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [filteredHistory, safePage, pageSize]
+  );
 
   const resetFilters = () => {
     setFilterField("all"); setFilterSource("all");
     setFilterFrom(""); setFilterTo(""); setFilterQuery("");
+    setSortOrder("newest"); setPageSize(10);
   };
 
   // Export full Admin Mode settings as a single JSON file
