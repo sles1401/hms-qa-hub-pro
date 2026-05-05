@@ -69,6 +69,9 @@ interface Props {
   onUpdateInsightTitle: (t: string) => void;
   learnMoreLabel: string;
   onUpdateLearnMoreLabel: (t: string) => void;
+  /** Optional: full app config snapshot for export, and importer for restore */
+  exportFullConfig?: () => any;
+  importFullConfig?: (data: any) => void;
 }
 
 type FieldKey = "insightText" | "insightTitle" | "learnMoreLabel" | "learnMoreUrl";
@@ -125,6 +128,7 @@ export default function DashboardTab({
   submoduleStats, categories, journalEntries,
   globalEditMode = false, learnMoreUrl, onUpdateLearnMoreUrl,
   insightTitle, onUpdateInsightTitle, learnMoreLabel, onUpdateLearnMoreLabel,
+  exportFullConfig, importFullConfig,
 }: Props) {
   const [editMode, setEditMode] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
@@ -148,10 +152,18 @@ export default function DashboardTab({
   const [history, setHistory] = useState<DashboardHistoryEntry[]>(() => loadHistory());
   const [showHistory, setShowHistory] = useState(false);
 
+  // History filters
+  const [filterField, setFilterField] = useState<"all" | FieldKey>("all");
+  const [filterSource, setFilterSource] = useState<"all" | HistorySource>("all");
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
+  const [filterQuery, setFilterQuery] = useState("");
+
   // Snapshot of last saved values for Undo
   const lastSnapshot = useRef<Partial<Record<FieldKey, string>>>({});
 
   const [confirm, setConfirm] = useState<null | { kind: FieldKey | "reset"; value?: string }>(null);
+  const [rollbackConfirm, setRollbackConfirm] = useState<DashboardHistoryEntry | null>(null);
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
   const [urlError, setUrlError] = useState<string | null>(null);
   const flashSaved = (key: string) => { setSavedFlash(key); setTimeout(() => setSavedFlash((k) => k === key ? null : k), 1400); };
@@ -351,6 +363,88 @@ export default function DashboardTab({
           alert(`Berhasil mengimpor ${valid.length} entry. Total riwayat: ${merged.length}.`);
         } catch (err: any) {
           alert(`Gagal mengimpor: ${err?.message || "format tidak valid"}`);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
+  // Filtered history view
+  const filteredHistory = useMemo(() => {
+    const fromTs = filterFrom ? new Date(filterFrom).getTime() : -Infinity;
+    const toTs = filterTo ? new Date(filterTo).getTime() + 86400000 : Infinity;
+    const q = filterQuery.trim().toLowerCase();
+    return history.filter((h) => {
+      if (filterField !== "all" && h.field !== filterField) return false;
+      const src = h.source ?? "manual";
+      if (filterSource !== "all" && src !== filterSource) return false;
+      const t = new Date(h.at).getTime();
+      if (isNaN(t) || t < fromTs || t > toTs) return false;
+      if (q && !((h.oldValue || "").toLowerCase().includes(q) || (h.newValue || "").toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [history, filterField, filterSource, filterFrom, filterTo, filterQuery]);
+
+  const resetFilters = () => {
+    setFilterField("all"); setFilterSource("all");
+    setFilterFrom(""); setFilterTo(""); setFilterQuery("");
+  };
+
+  // Export full Admin Mode settings as a single JSON file
+  const exportAllSettings = () => {
+    const cfg = exportFullConfig ? exportFullConfig() : {
+      insightText, insightTitle, learnMoreLabel, learnMoreUrl,
+      stats, submoduleStats, categories, userName, releaseDeadline,
+    };
+    const payload = {
+      schema: "hms-qa-hub-admin-settings",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      config: cfg,
+      history,
+    };
+    downloadFile(
+      `hms-qa-admin-settings-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify(payload, null, 2),
+      "application/json"
+    );
+  };
+
+  const importAllSettings = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,application/json";
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target?.result as string);
+          if (!data || data.schema !== "hms-qa-hub-admin-settings") {
+            alert("File tidak dikenali (schema bukan hms-qa-hub-admin-settings).");
+            return;
+          }
+          if (!window.confirm("Impor pengaturan Admin Mode? Konfigurasi & riwayat saat ini akan ditimpa.")) return;
+          if (Array.isArray(data.history)) {
+            const valid = data.history.map(validateEntry).filter((x: any): x is DashboardHistoryEntry => !!x);
+            setHistory(valid); saveHistory(valid);
+          }
+          if (data.config && importFullConfig) importFullConfig(data.config);
+          else if (data.config) {
+            // Fallback: only restore dashboard fields we control directly
+            const c = data.config;
+            if (typeof c.insightText === "string") onUpdateInsight(c.insightText);
+            if (typeof c.insightTitle === "string") onUpdateInsightTitle(c.insightTitle);
+            if (typeof c.learnMoreLabel === "string") onUpdateLearnMoreLabel(c.learnMoreLabel);
+            if (typeof c.learnMoreUrl === "string") onUpdateLearnMoreUrl(c.learnMoreUrl);
+            if (typeof c.userName === "string") onUpdateUserName(c.userName);
+            if (typeof c.releaseDeadline === "string") onUpdateDeadline(c.releaseDeadline);
+          }
+          alert("Impor pengaturan selesai.");
+        } catch (err: any) {
+          alert(`Gagal impor: ${err?.message || "format tidak valid"}`);
         }
       };
       reader.readAsText(file);
@@ -779,10 +873,53 @@ export default function DashboardTab({
               </div>
               <button onClick={() => setShowHistory(false)} className="text-xs text-muted-foreground hover:text-foreground">Tutup</button>
             </div>
+            {/* Filters */}
+            <div className="p-3 border-b border-border bg-muted/30 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <select value={filterField} onChange={(e) => setFilterField(e.target.value as any)}
+                  className="text-xs px-2 py-1 rounded border border-input bg-background">
+                  <option value="all">Semua field</option>
+                  <option value="insightText">Insight Text</option>
+                  <option value="insightTitle">Insight Title</option>
+                  <option value="learnMoreLabel">CTA Label</option>
+                  <option value="learnMoreUrl">Learn More URL</option>
+                </select>
+                <select value={filterSource} onChange={(e) => setFilterSource(e.target.value as any)}
+                  className="text-xs px-2 py-1 rounded border border-input bg-background">
+                  <option value="all">Semua sumber</option>
+                  <option value="auto">Auto</option>
+                  <option value="manual">Manual</option>
+                  <option value="rollback">Rollback</option>
+                  <option value="undo">Undo</option>
+                  <option value="reset">Reset</option>
+                  <option value="import">Import</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)}
+                  className="text-xs px-2 py-1 rounded border border-input bg-background" placeholder="Dari" />
+                <input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)}
+                  className="text-xs px-2 py-1 rounded border border-input bg-background" placeholder="Sampai" />
+              </div>
+              <div className="flex gap-2">
+                <input type="text" value={filterQuery} onChange={(e) => setFilterQuery(e.target.value)}
+                  placeholder="Cari di old/new value..."
+                  className="flex-1 text-xs px-2 py-1 rounded border border-input bg-background" />
+                <button onClick={resetFilters}
+                  className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:bg-muted">
+                  Reset
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Menampilkan {filteredHistory.length} dari {history.length} entry
+              </p>
+            </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               {history.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">Belum ada perubahan tersimpan.</p>
-              ) : history.map((h) => {
+              ) : filteredHistory.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Tidak ada entry yang cocok dengan filter.</p>
+              ) : filteredHistory.map((h) => {
                 const src = h.source ?? "manual";
                 const srcStyle = src === "auto" ? "bg-blue-100 text-blue-700" :
                   src === "manual" ? "bg-emerald-100 text-emerald-700" :
@@ -809,7 +946,7 @@ export default function DashboardTab({
                     </div>
                     <div className="flex justify-end">
                       <button
-                        onClick={() => handleRollback(h.id)}
+                        onClick={() => setRollbackConfirm(h)}
                         title="Kembalikan ke nilai sebelum perubahan ini"
                         className="text-[10px] px-2 py-0.5 rounded border border-border text-purple-700 hover:bg-purple-50 inline-flex items-center gap-1"
                       >
@@ -824,15 +961,23 @@ export default function DashboardTab({
               <div className="flex items-center gap-2 flex-wrap">
                 <button onClick={exportHistoryJSON} disabled={history.length === 0}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
-                  <FileJson size={12} /> Export JSON
+                  <FileJson size={12} /> Export History JSON
                 </button>
                 <button onClick={exportHistoryCSV} disabled={history.length === 0}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
-                  <FileSpreadsheet size={12} /> Export CSV
+                  <FileSpreadsheet size={12} /> Export History CSV
                 </button>
                 <button onClick={handleImportHistory}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
-                  <Upload size={12} /> Import JSON/CSV
+                  <Upload size={12} /> Import History
+                </button>
+                <button onClick={exportAllSettings}
+                  className="text-xs px-3 py-1.5 rounded border border-primary text-primary hover:bg-primary/10 inline-flex items-center gap-1">
+                  <FileJson size={12} /> Export Semua Pengaturan
+                </button>
+                <button onClick={importAllSettings}
+                  className="text-xs px-3 py-1.5 rounded border border-primary text-primary hover:bg-primary/10 inline-flex items-center gap-1">
+                  <Upload size={12} /> Import Semua Pengaturan
                 </button>
                 <button onClick={handleUndo} disabled={history.length === 0}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
@@ -874,6 +1019,23 @@ export default function DashboardTab({
           setConfirm(null);
         }}
         onCancel={() => setConfirm(null)}
+      />
+
+      <ConfirmDialog
+        open={!!rollbackConfirm}
+        title="Konfirmasi Rollback"
+        description={
+          rollbackConfirm
+            ? `Kembalikan field "${FIELD_LABELS[rollbackConfirm.field]}" ke nilai sebelum perubahan pada ${new Date(rollbackConfirm.at).toLocaleString("id-ID")}? Nilai akan menjadi: "${rollbackConfirm.oldValue || "(kosong)"}"`
+            : ""
+        }
+        variant="danger"
+        confirmLabel="Ya, Rollback"
+        onConfirm={() => {
+          if (rollbackConfirm) handleRollback(rollbackConfirm.id);
+          setRollbackConfirm(null);
+        }}
+        onCancel={() => setRollbackConfirm(null)}
       />
     </div>
   );

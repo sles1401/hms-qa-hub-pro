@@ -155,6 +155,8 @@ export default function Index() {
               onUpdateInsightTitle={(insightTitle) => { update({ insightTitle }); audit("Update Insight Title", insightTitle); }}
               learnMoreLabel={config.learnMoreLabel}
               onUpdateLearnMoreLabel={(learnMoreLabel) => { update({ learnMoreLabel }); audit("Update Learn More Label", learnMoreLabel); }}
+              exportFullConfig={() => config}
+              importFullConfig={(data) => { setConfig((prev) => ({ ...prev, ...data })); audit("Import Admin Settings", "full config"); }}
             />
           )}
           {activeTab === "test-plan" && (
