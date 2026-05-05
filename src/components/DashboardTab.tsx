@@ -991,7 +991,7 @@ export default function DashboardTab({
                 <p className="text-sm text-muted-foreground text-center py-8">Belum ada perubahan tersimpan.</p>
               ) : filteredHistory.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">Tidak ada entry yang cocok dengan filter.</p>
-              ) : filteredHistory.map((h) => {
+              ) : pagedHistory.map((h) => {
                 const src = h.source ?? "manual";
                 const srcStyle = src === "auto" ? "bg-blue-100 text-blue-700" :
                   src === "manual" ? "bg-emerald-100 text-emerald-700" :
