@@ -152,10 +152,18 @@ export default function DashboardTab({
   const [history, setHistory] = useState<DashboardHistoryEntry[]>(() => loadHistory());
   const [showHistory, setShowHistory] = useState(false);
 
+  // History filters
+  const [filterField, setFilterField] = useState<"all" | FieldKey>("all");
+  const [filterSource, setFilterSource] = useState<"all" | HistorySource>("all");
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
+  const [filterQuery, setFilterQuery] = useState("");
+
   // Snapshot of last saved values for Undo
   const lastSnapshot = useRef<Partial<Record<FieldKey, string>>>({});
 
   const [confirm, setConfirm] = useState<null | { kind: FieldKey | "reset"; value?: string }>(null);
+  const [rollbackConfirm, setRollbackConfirm] = useState<DashboardHistoryEntry | null>(null);
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
   const [urlError, setUrlError] = useState<string | null>(null);
   const flashSaved = (key: string) => { setSavedFlash(key); setTimeout(() => setSavedFlash((k) => k === key ? null : k), 1400); };
