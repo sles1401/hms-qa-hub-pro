@@ -153,12 +153,33 @@ export default function DashboardTab({
   const [history, setHistory] = useState<DashboardHistoryEntry[]>(() => loadHistory());
   const [showHistory, setShowHistory] = useState(false);
 
-  // History filters
-  const [filterField, setFilterField] = useState<"all" | FieldKey>("all");
-  const [filterSource, setFilterSource] = useState<"all" | HistorySource>("all");
-  const [filterFrom, setFilterFrom] = useState("");
-  const [filterTo, setFilterTo] = useState("");
-  const [filterQuery, setFilterQuery] = useState("");
+  // History filters (persisted)
+  const FILTER_KEY = "hms-qa-history-filters";
+  const persistedFilters = (() => {
+    try { return JSON.parse(localStorage.getItem(FILTER_KEY) || "{}"); } catch { return {}; }
+  })();
+  const [filterField, setFilterField] = useState<"all" | FieldKey>(persistedFilters.field ?? "all");
+  const [filterSource, setFilterSource] = useState<"all" | HistorySource>(persistedFilters.source ?? "all");
+  const [filterFrom, setFilterFrom] = useState<string>(persistedFilters.from ?? "");
+  const [filterTo, setFilterTo] = useState<string>(persistedFilters.to ?? "");
+  const [filterQuery, setFilterQuery] = useState<string>(persistedFilters.query ?? "");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">(persistedFilters.sort ?? "newest");
+  const [pageSize, setPageSize] = useState<number>(persistedFilters.pageSize ?? 10);
+  const [page, setPage] = useState<number>(1);
+
+  useEffect(() => {
+    localStorage.setItem(FILTER_KEY, JSON.stringify({
+      field: filterField, source: filterSource, from: filterFrom, to: filterTo,
+      query: filterQuery, sort: sortOrder, pageSize,
+    }));
+    setPage(1);
+  }, [filterField, filterSource, filterFrom, filterTo, filterQuery, sortOrder, pageSize]);
+
+  // Health settings (interval/enable for all URL badges)
+  const [healthSettings, setHealthSettings] = useHealthSettings();
+
+  // Import mode (merge | overwrite)
+  const [importMode, setImportMode] = useState<"merge" | "overwrite">("merge");
 
   // Snapshot of last saved values for Undo
   const lastSnapshot = useRef<Partial<Record<FieldKey, string>>>({});
