@@ -1020,6 +1020,23 @@ export default function DashboardTab({
         }}
         onCancel={() => setConfirm(null)}
       />
+
+      <ConfirmDialog
+        open={!!rollbackConfirm}
+        title="Konfirmasi Rollback"
+        description={
+          rollbackConfirm
+            ? `Kembalikan field "${FIELD_LABELS[rollbackConfirm.field]}" ke nilai sebelum perubahan pada ${new Date(rollbackConfirm.at).toLocaleString("id-ID")}? Nilai akan menjadi: "${rollbackConfirm.oldValue || "(kosong)"}"`
+            : ""
+        }
+        variant="danger"
+        confirmLabel="Ya, Rollback"
+        onConfirm={() => {
+          if (rollbackConfirm) handleRollback(rollbackConfirm.id);
+          setRollbackConfirm(null);
+        }}
+        onCancel={() => setRollbackConfirm(null)}
+      />
     </div>
   );
 }
