@@ -660,6 +660,11 @@ export default function DashboardTab({
                 className="text-xs px-2.5 py-1.5 rounded-md border border-amber-300 text-amber-700 hover:bg-amber-50 inline-flex items-center gap-1">
                 <RotateCcw size={12} /> Reset Defaults
               </button>
+              <button onClick={() => triggerRecheckAll()}
+                className="text-xs px-2.5 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-muted inline-flex items-center gap-1"
+                title="Re-check semua URL Learn More & embed Docs/Sheets sekarang">
+                <RefreshCw size={12} /> Run Healthcheck Now
+              </button>
             </>
           )}
           <button
