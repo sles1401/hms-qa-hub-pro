@@ -5,6 +5,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAx
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import UrlHealthBadge from "@/components/UrlHealthBadge";
+import { useHealthSettings, triggerRecheckAll, HEALTH_INTERVAL_OPTIONS } from "@/hooks/useUrlHealth";
 
 // Field-level validators
 function validateTitle(v: string): string | null {
