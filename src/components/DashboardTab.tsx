@@ -467,23 +467,43 @@ export default function DashboardTab({
             alert("File tidak dikenali (schema bukan hms-qa-hub-admin-settings).");
             return;
           }
-          if (!window.confirm("Impor pengaturan Admin Mode? Konfigurasi & riwayat saat ini akan ditimpa.")) return;
+          const modeLabel = importMode === "overwrite" ? "OVERWRITE (ganti total)" : "MERGE (gabung)";
+          if (!window.confirm(`Impor pengaturan Admin Mode dengan mode ${modeLabel}?`)) return;
           if (Array.isArray(data.history)) {
             const valid = data.history.map(validateEntry).filter((x: any): x is DashboardHistoryEntry => !!x);
-            setHistory(valid); saveHistory(valid);
+            let nextHist: DashboardHistoryEntry[];
+            if (importMode === "overwrite") {
+              nextHist = valid.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, HISTORY_MAX);
+            } else {
+              const map = new Map<string, DashboardHistoryEntry>();
+              [...valid, ...history].forEach((h) => map.set(h.id, h));
+              nextHist = Array.from(map.values())
+                .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+                .slice(0, HISTORY_MAX);
+            }
+            setHistory(nextHist); saveHistory(nextHist);
           }
-          if (data.config && importFullConfig) importFullConfig(data.config);
-          else if (data.config) {
-            // Fallback: only restore dashboard fields we control directly
+          if (data.config) {
             const c = data.config;
-            if (typeof c.insightText === "string") onUpdateInsight(c.insightText);
-            if (typeof c.insightTitle === "string") onUpdateInsightTitle(c.insightTitle);
-            if (typeof c.learnMoreLabel === "string") onUpdateLearnMoreLabel(c.learnMoreLabel);
-            if (typeof c.learnMoreUrl === "string") onUpdateLearnMoreUrl(c.learnMoreUrl);
-            if (typeof c.userName === "string") onUpdateUserName(c.userName);
-            if (typeof c.releaseDeadline === "string") onUpdateDeadline(c.releaseDeadline);
+            if (importMode === "overwrite" && importFullConfig) {
+              importFullConfig(c);
+            } else {
+              // Merge: shallow-merge known fields only
+              if (typeof c.insightText === "string") onUpdateInsight(c.insightText);
+              if (typeof c.insightTitle === "string") onUpdateInsightTitle(c.insightTitle);
+              if (typeof c.learnMoreLabel === "string") onUpdateLearnMoreLabel(c.learnMoreLabel);
+              if (typeof c.learnMoreUrl === "string") onUpdateLearnMoreUrl(c.learnMoreUrl);
+              if (typeof c.userName === "string") onUpdateUserName(c.userName);
+              if (typeof c.releaseDeadline === "string") onUpdateDeadline(c.releaseDeadline);
+              if (importFullConfig) importFullConfig({
+                ...(typeof c.insightText === "string" ? { insightText: c.insightText } : {}),
+                ...(typeof c.insightTitle === "string" ? { insightTitle: c.insightTitle } : {}),
+                ...(typeof c.learnMoreLabel === "string" ? { learnMoreLabel: c.learnMoreLabel } : {}),
+                ...(typeof c.learnMoreUrl === "string" ? { learnMoreUrl: c.learnMoreUrl } : {}),
+              });
+            }
           }
-          alert("Impor pengaturan selesai.");
+          alert(`Impor selesai (${importMode}).`);
         } catch (err: any) {
           alert(`Gagal impor: ${err?.message || "format tidak valid"}`);
         }
