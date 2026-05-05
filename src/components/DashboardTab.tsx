@@ -370,6 +370,88 @@ export default function DashboardTab({
     input.click();
   };
 
+  // Filtered history view
+  const filteredHistory = useMemo(() => {
+    const fromTs = filterFrom ? new Date(filterFrom).getTime() : -Infinity;
+    const toTs = filterTo ? new Date(filterTo).getTime() + 86400000 : Infinity;
+    const q = filterQuery.trim().toLowerCase();
+    return history.filter((h) => {
+      if (filterField !== "all" && h.field !== filterField) return false;
+      const src = h.source ?? "manual";
+      if (filterSource !== "all" && src !== filterSource) return false;
+      const t = new Date(h.at).getTime();
+      if (isNaN(t) || t < fromTs || t > toTs) return false;
+      if (q && !((h.oldValue || "").toLowerCase().includes(q) || (h.newValue || "").toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [history, filterField, filterSource, filterFrom, filterTo, filterQuery]);
+
+  const resetFilters = () => {
+    setFilterField("all"); setFilterSource("all");
+    setFilterFrom(""); setFilterTo(""); setFilterQuery("");
+  };
+
+  // Export full Admin Mode settings as a single JSON file
+  const exportAllSettings = () => {
+    const cfg = exportFullConfig ? exportFullConfig() : {
+      insightText, insightTitle, learnMoreLabel, learnMoreUrl,
+      stats, submoduleStats, categories, userName, releaseDeadline,
+    };
+    const payload = {
+      schema: "hms-qa-hub-admin-settings",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      config: cfg,
+      history,
+    };
+    downloadFile(
+      `hms-qa-admin-settings-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify(payload, null, 2),
+      "application/json"
+    );
+  };
+
+  const importAllSettings = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,application/json";
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target?.result as string);
+          if (!data || data.schema !== "hms-qa-hub-admin-settings") {
+            alert("File tidak dikenali (schema bukan hms-qa-hub-admin-settings).");
+            return;
+          }
+          if (!window.confirm("Impor pengaturan Admin Mode? Konfigurasi & riwayat saat ini akan ditimpa.")) return;
+          if (Array.isArray(data.history)) {
+            const valid = data.history.map(validateEntry).filter((x: any): x is DashboardHistoryEntry => !!x);
+            setHistory(valid); saveHistory(valid);
+          }
+          if (data.config && importFullConfig) importFullConfig(data.config);
+          else if (data.config) {
+            // Fallback: only restore dashboard fields we control directly
+            const c = data.config;
+            if (typeof c.insightText === "string") onUpdateInsight(c.insightText);
+            if (typeof c.insightTitle === "string") onUpdateInsightTitle(c.insightTitle);
+            if (typeof c.learnMoreLabel === "string") onUpdateLearnMoreLabel(c.learnMoreLabel);
+            if (typeof c.learnMoreUrl === "string") onUpdateLearnMoreUrl(c.learnMoreUrl);
+            if (typeof c.userName === "string") onUpdateUserName(c.userName);
+            if (typeof c.releaseDeadline === "string") onUpdateDeadline(c.releaseDeadline);
+          }
+          alert("Impor pengaturan selesai.");
+        } catch (err: any) {
+          alert(`Gagal impor: ${err?.message || "format tidak valid"}`);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
   const insightEditing = editMode || globalEditMode;
 
   const passRate = stats.totalTC > 0 ? ((stats.passed / stats.totalTC) * 100).toFixed(1) : "0";
