@@ -903,7 +903,7 @@ export default function DashboardTab({
                     </div>
                     <div className="flex justify-end">
                       <button
-                        onClick={() => handleRollback(h.id)}
+                        onClick={() => setRollbackConfirm(h)}
                         title="Kembalikan ke nilai sebelum perubahan ini"
                         className="text-[10px] px-2 py-0.5 rounded border border-border text-purple-700 hover:bg-purple-50 inline-flex items-center gap-1"
                       >
