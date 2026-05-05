@@ -873,10 +873,53 @@ export default function DashboardTab({
               </div>
               <button onClick={() => setShowHistory(false)} className="text-xs text-muted-foreground hover:text-foreground">Tutup</button>
             </div>
+            {/* Filters */}
+            <div className="p-3 border-b border-border bg-muted/30 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <select value={filterField} onChange={(e) => setFilterField(e.target.value as any)}
+                  className="text-xs px-2 py-1 rounded border border-input bg-background">
+                  <option value="all">Semua field</option>
+                  <option value="insightText">Insight Text</option>
+                  <option value="insightTitle">Insight Title</option>
+                  <option value="learnMoreLabel">CTA Label</option>
+                  <option value="learnMoreUrl">Learn More URL</option>
+                </select>
+                <select value={filterSource} onChange={(e) => setFilterSource(e.target.value as any)}
+                  className="text-xs px-2 py-1 rounded border border-input bg-background">
+                  <option value="all">Semua sumber</option>
+                  <option value="auto">Auto</option>
+                  <option value="manual">Manual</option>
+                  <option value="rollback">Rollback</option>
+                  <option value="undo">Undo</option>
+                  <option value="reset">Reset</option>
+                  <option value="import">Import</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)}
+                  className="text-xs px-2 py-1 rounded border border-input bg-background" placeholder="Dari" />
+                <input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)}
+                  className="text-xs px-2 py-1 rounded border border-input bg-background" placeholder="Sampai" />
+              </div>
+              <div className="flex gap-2">
+                <input type="text" value={filterQuery} onChange={(e) => setFilterQuery(e.target.value)}
+                  placeholder="Cari di old/new value..."
+                  className="flex-1 text-xs px-2 py-1 rounded border border-input bg-background" />
+                <button onClick={resetFilters}
+                  className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:bg-muted">
+                  Reset
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Menampilkan {filteredHistory.length} dari {history.length} entry
+              </p>
+            </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               {history.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">Belum ada perubahan tersimpan.</p>
-              ) : history.map((h) => {
+              ) : filteredHistory.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Tidak ada entry yang cocok dengan filter.</p>
+              ) : filteredHistory.map((h) => {
                 const src = h.source ?? "manual";
                 const srcStyle = src === "auto" ? "bg-blue-100 text-blue-700" :
                   src === "manual" ? "bg-emerald-100 text-emerald-700" :
@@ -918,15 +961,23 @@ export default function DashboardTab({
               <div className="flex items-center gap-2 flex-wrap">
                 <button onClick={exportHistoryJSON} disabled={history.length === 0}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
-                  <FileJson size={12} /> Export JSON
+                  <FileJson size={12} /> Export History JSON
                 </button>
                 <button onClick={exportHistoryCSV} disabled={history.length === 0}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
-                  <FileSpreadsheet size={12} /> Export CSV
+                  <FileSpreadsheet size={12} /> Export History CSV
                 </button>
                 <button onClick={handleImportHistory}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
-                  <Upload size={12} /> Import JSON/CSV
+                  <Upload size={12} /> Import History
+                </button>
+                <button onClick={exportAllSettings}
+                  className="text-xs px-3 py-1.5 rounded border border-primary text-primary hover:bg-primary/10 inline-flex items-center gap-1">
+                  <FileJson size={12} /> Export Semua Pengaturan
+                </button>
+                <button onClick={importAllSettings}
+                  className="text-xs px-3 py-1.5 rounded border border-primary text-primary hover:bg-primary/10 inline-flex items-center gap-1">
+                  <Upload size={12} /> Import Semua Pengaturan
                 </button>
                 <button onClick={handleUndo} disabled={history.length === 0}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
