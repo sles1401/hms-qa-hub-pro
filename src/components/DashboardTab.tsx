@@ -5,6 +5,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAx
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import UrlHealthBadge from "@/components/UrlHealthBadge";
+import { useHealthSettings, triggerRecheckAll, HEALTH_INTERVAL_OPTIONS } from "@/hooks/useUrlHealth";
 
 // Field-level validators
 function validateTitle(v: string): string | null {
@@ -152,12 +153,33 @@ export default function DashboardTab({
   const [history, setHistory] = useState<DashboardHistoryEntry[]>(() => loadHistory());
   const [showHistory, setShowHistory] = useState(false);
 
-  // History filters
-  const [filterField, setFilterField] = useState<"all" | FieldKey>("all");
-  const [filterSource, setFilterSource] = useState<"all" | HistorySource>("all");
-  const [filterFrom, setFilterFrom] = useState("");
-  const [filterTo, setFilterTo] = useState("");
-  const [filterQuery, setFilterQuery] = useState("");
+  // History filters (persisted)
+  const FILTER_KEY = "hms-qa-history-filters";
+  const persistedFilters = (() => {
+    try { return JSON.parse(localStorage.getItem(FILTER_KEY) || "{}"); } catch { return {}; }
+  })();
+  const [filterField, setFilterField] = useState<"all" | FieldKey>(persistedFilters.field ?? "all");
+  const [filterSource, setFilterSource] = useState<"all" | HistorySource>(persistedFilters.source ?? "all");
+  const [filterFrom, setFilterFrom] = useState<string>(persistedFilters.from ?? "");
+  const [filterTo, setFilterTo] = useState<string>(persistedFilters.to ?? "");
+  const [filterQuery, setFilterQuery] = useState<string>(persistedFilters.query ?? "");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">(persistedFilters.sort ?? "newest");
+  const [pageSize, setPageSize] = useState<number>(persistedFilters.pageSize ?? 10);
+  const [page, setPage] = useState<number>(1);
+
+  useEffect(() => {
+    localStorage.setItem(FILTER_KEY, JSON.stringify({
+      field: filterField, source: filterSource, from: filterFrom, to: filterTo,
+      query: filterQuery, sort: sortOrder, pageSize,
+    }));
+    setPage(1);
+  }, [filterField, filterSource, filterFrom, filterTo, filterQuery, sortOrder, pageSize]);
+
+  // Health settings (interval/enable for all URL badges)
+  const [healthSettings, setHealthSettings] = useHealthSettings();
+
+  // Import mode (merge | overwrite)
+  const [importMode, setImportMode] = useState<"merge" | "overwrite">("merge");
 
   // Snapshot of last saved values for Undo
   const lastSnapshot = useRef<Partial<Record<FieldKey, string>>>({});
@@ -354,13 +376,19 @@ export default function DashboardTab({
           if (!Array.isArray(raw)) throw new Error("Format harus array");
           const valid = raw.map(validateEntry).filter((x): x is DashboardHistoryEntry => !!x);
           if (valid.length === 0) { alert("Tidak ada entry valid di file ini."); return; }
-          const map = new Map<string, DashboardHistoryEntry>();
-          [...valid, ...history].forEach((h) => map.set(h.id, h));
-          const merged = Array.from(map.values())
-            .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-            .slice(0, HISTORY_MAX);
-          setHistory(merged); saveHistory(merged);
-          alert(`Berhasil mengimpor ${valid.length} entry. Total riwayat: ${merged.length}.`);
+          let next: DashboardHistoryEntry[];
+          if (importMode === "overwrite") {
+            if (!window.confirm(`Mode OVERWRITE: ${history.length} riwayat saat ini akan dihapus dan diganti dengan ${valid.length} entry. Lanjutkan?`)) return;
+            next = valid.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, HISTORY_MAX);
+          } else {
+            const map = new Map<string, DashboardHistoryEntry>();
+            [...valid, ...history].forEach((h) => map.set(h.id, h));
+            next = Array.from(map.values())
+              .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+              .slice(0, HISTORY_MAX);
+          }
+          setHistory(next); saveHistory(next);
+          alert(`Berhasil mengimpor ${valid.length} entry (${importMode}). Total riwayat: ${next.length}.`);
         } catch (err: any) {
           alert(`Gagal mengimpor: ${err?.message || "format tidak valid"}`);
         }
@@ -370,12 +398,12 @@ export default function DashboardTab({
     input.click();
   };
 
-  // Filtered history view
+  // Filtered + sorted history view
   const filteredHistory = useMemo(() => {
     const fromTs = filterFrom ? new Date(filterFrom).getTime() : -Infinity;
     const toTs = filterTo ? new Date(filterTo).getTime() + 86400000 : Infinity;
     const q = filterQuery.trim().toLowerCase();
-    return history.filter((h) => {
+    const list = history.filter((h) => {
       if (filterField !== "all" && h.field !== filterField) return false;
       const src = h.source ?? "manual";
       if (filterSource !== "all" && src !== filterSource) return false;
@@ -384,11 +412,24 @@ export default function DashboardTab({
       if (q && !((h.oldValue || "").toLowerCase().includes(q) || (h.newValue || "").toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [history, filterField, filterSource, filterFrom, filterTo, filterQuery]);
+    list.sort((a, b) => {
+      const da = new Date(a.at).getTime(), db = new Date(b.at).getTime();
+      return sortOrder === "newest" ? db - da : da - db;
+    });
+    return list;
+  }, [history, filterField, filterSource, filterFrom, filterTo, filterQuery, sortOrder]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredHistory.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedHistory = useMemo(
+    () => filteredHistory.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [filteredHistory, safePage, pageSize]
+  );
 
   const resetFilters = () => {
     setFilterField("all"); setFilterSource("all");
     setFilterFrom(""); setFilterTo(""); setFilterQuery("");
+    setSortOrder("newest"); setPageSize(10);
   };
 
   // Export full Admin Mode settings as a single JSON file
@@ -426,23 +467,43 @@ export default function DashboardTab({
             alert("File tidak dikenali (schema bukan hms-qa-hub-admin-settings).");
             return;
           }
-          if (!window.confirm("Impor pengaturan Admin Mode? Konfigurasi & riwayat saat ini akan ditimpa.")) return;
+          const modeLabel = importMode === "overwrite" ? "OVERWRITE (ganti total)" : "MERGE (gabung)";
+          if (!window.confirm(`Impor pengaturan Admin Mode dengan mode ${modeLabel}?`)) return;
           if (Array.isArray(data.history)) {
             const valid = data.history.map(validateEntry).filter((x: any): x is DashboardHistoryEntry => !!x);
-            setHistory(valid); saveHistory(valid);
+            let nextHist: DashboardHistoryEntry[];
+            if (importMode === "overwrite") {
+              nextHist = valid.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, HISTORY_MAX);
+            } else {
+              const map = new Map<string, DashboardHistoryEntry>();
+              [...valid, ...history].forEach((h) => map.set(h.id, h));
+              nextHist = Array.from(map.values())
+                .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+                .slice(0, HISTORY_MAX);
+            }
+            setHistory(nextHist); saveHistory(nextHist);
           }
-          if (data.config && importFullConfig) importFullConfig(data.config);
-          else if (data.config) {
-            // Fallback: only restore dashboard fields we control directly
+          if (data.config) {
             const c = data.config;
-            if (typeof c.insightText === "string") onUpdateInsight(c.insightText);
-            if (typeof c.insightTitle === "string") onUpdateInsightTitle(c.insightTitle);
-            if (typeof c.learnMoreLabel === "string") onUpdateLearnMoreLabel(c.learnMoreLabel);
-            if (typeof c.learnMoreUrl === "string") onUpdateLearnMoreUrl(c.learnMoreUrl);
-            if (typeof c.userName === "string") onUpdateUserName(c.userName);
-            if (typeof c.releaseDeadline === "string") onUpdateDeadline(c.releaseDeadline);
+            if (importMode === "overwrite" && importFullConfig) {
+              importFullConfig(c);
+            } else {
+              // Merge: shallow-merge known fields only
+              if (typeof c.insightText === "string") onUpdateInsight(c.insightText);
+              if (typeof c.insightTitle === "string") onUpdateInsightTitle(c.insightTitle);
+              if (typeof c.learnMoreLabel === "string") onUpdateLearnMoreLabel(c.learnMoreLabel);
+              if (typeof c.learnMoreUrl === "string") onUpdateLearnMoreUrl(c.learnMoreUrl);
+              if (typeof c.userName === "string") onUpdateUserName(c.userName);
+              if (typeof c.releaseDeadline === "string") onUpdateDeadline(c.releaseDeadline);
+              if (importFullConfig) importFullConfig({
+                ...(typeof c.insightText === "string" ? { insightText: c.insightText } : {}),
+                ...(typeof c.insightTitle === "string" ? { insightTitle: c.insightTitle } : {}),
+                ...(typeof c.learnMoreLabel === "string" ? { learnMoreLabel: c.learnMoreLabel } : {}),
+                ...(typeof c.learnMoreUrl === "string" ? { learnMoreUrl: c.learnMoreUrl } : {}),
+              });
+            }
           }
-          alert("Impor pengaturan selesai.");
+          alert(`Impor selesai (${importMode}).`);
         } catch (err: any) {
           alert(`Gagal impor: ${err?.message || "format tidak valid"}`);
         }
@@ -598,6 +659,11 @@ export default function DashboardTab({
               <button onClick={() => setConfirm({ kind: "reset" })}
                 className="text-xs px-2.5 py-1.5 rounded-md border border-amber-300 text-amber-700 hover:bg-amber-50 inline-flex items-center gap-1">
                 <RotateCcw size={12} /> Reset Defaults
+              </button>
+              <button onClick={() => triggerRecheckAll()}
+                className="text-xs px-2.5 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-muted inline-flex items-center gap-1"
+                title="Re-check semua URL Learn More & embed Docs/Sheets sekarang">
+                <RefreshCw size={12} /> Run Healthcheck Now
               </button>
             </>
           )}
@@ -910,8 +976,19 @@ export default function DashboardTab({
                   Reset
                 </button>
               </div>
+              <div className="grid grid-cols-2 gap-2">
+                <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)}
+                  className="text-xs px-2 py-1 rounded border border-input bg-background">
+                  <option value="newest">Terbaru dulu</option>
+                  <option value="oldest">Terlama dulu</option>
+                </select>
+                <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="text-xs px-2 py-1 rounded border border-input bg-background">
+                  {[5, 10, 20, 50].map((n) => <option key={n} value={n}>{n} / halaman</option>)}
+                </select>
+              </div>
               <p className="text-[10px] text-muted-foreground">
-                Menampilkan {filteredHistory.length} dari {history.length} entry
+                Menampilkan {pagedHistory.length} dari {filteredHistory.length} (total {history.length}) · Halaman {safePage}/{totalPages}
               </p>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -919,7 +996,7 @@ export default function DashboardTab({
                 <p className="text-sm text-muted-foreground text-center py-8">Belum ada perubahan tersimpan.</p>
               ) : filteredHistory.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">Tidak ada entry yang cocok dengan filter.</p>
-              ) : filteredHistory.map((h) => {
+              ) : pagedHistory.map((h) => {
                 const src = h.source ?? "manual";
                 const srcStyle = src === "auto" ? "bg-blue-100 text-blue-700" :
                   src === "manual" ? "bg-emerald-100 text-emerald-700" :
@@ -956,6 +1033,47 @@ export default function DashboardTab({
                   </div>
                 );
               })}
+            </div>
+            {/* Pagination */}
+            <div className="px-3 py-2 border-t border-border flex items-center justify-between gap-2 text-xs">
+              <button onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage <= 1}
+                className="px-2 py-1 rounded border border-border disabled:opacity-40">‹ Prev</button>
+              <span className="text-muted-foreground">Halaman {safePage} dari {totalPages}</span>
+              <button onClick={() => setPage(Math.min(totalPages, safePage + 1))} disabled={safePage >= totalPages}
+                className="px-2 py-1 rounded border border-border disabled:opacity-40">Next ›</button>
+            </div>
+            {/* Import mode + Healthcheck controls */}
+            <div className="px-3 py-2 border-t border-border space-y-2 bg-muted/20">
+              <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                <span className="text-muted-foreground font-medium">Mode Import:</span>
+                <label className="inline-flex items-center gap-1">
+                  <input type="radio" name="importMode" checked={importMode === "merge"} onChange={() => setImportMode("merge")} />
+                  Merge (gabung)
+                </label>
+                <label className="inline-flex items-center gap-1">
+                  <input type="radio" name="importMode" checked={importMode === "overwrite"} onChange={() => setImportMode("overwrite")} />
+                  Overwrite (timpa)
+                </label>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                <span className="text-muted-foreground font-medium">Healthcheck:</span>
+                <label className="inline-flex items-center gap-1">
+                  <input type="checkbox" checked={healthSettings.enabled}
+                    onChange={(e) => setHealthSettings({ ...healthSettings, enabled: e.target.checked })} />
+                  Auto
+                </label>
+                <select value={healthSettings.intervalMs} disabled={!healthSettings.enabled}
+                  onChange={(e) => setHealthSettings({ ...healthSettings, intervalMs: Number(e.target.value) })}
+                  className="text-[11px] px-1.5 py-0.5 rounded border border-input bg-background disabled:opacity-50">
+                  {HEALTH_INTERVAL_OPTIONS.filter((o) => o.value > 0).map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <button onClick={() => triggerRecheckAll()}
+                  className="px-2 py-0.5 rounded border border-primary text-primary hover:bg-primary/10 inline-flex items-center gap-1">
+                  <RefreshCw size={11} /> Run Healthcheck Now
+                </button>
+              </div>
             </div>
             <div className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
