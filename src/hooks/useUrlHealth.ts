@@ -8,14 +8,74 @@ export interface HealthResult {
   checkedAt?: string;
 }
 
+const SETTINGS_KEY = "hms-qa-health-settings";
+const RECHECK_EVENT = "hms-qa-health-recheck-all";
+const SETTINGS_EVENT = "hms-qa-health-settings-changed";
+
+export interface HealthSettings {
+  enabled: boolean;
+  intervalMs: number; // 0 = disabled
+}
+
+export const HEALTH_INTERVAL_OPTIONS: { label: string; value: number }[] = [
+  { label: "Nonaktif", value: 0 },
+  { label: "30 detik", value: 30_000 },
+  { label: "1 menit", value: 60_000 },
+  { label: "5 menit", value: 5 * 60_000 },
+  { label: "15 menit", value: 15 * 60_000 },
+  { label: "1 jam", value: 60 * 60_000 },
+];
+
+export function loadHealthSettings(): HealthSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      return {
+        enabled: typeof p.enabled === "boolean" ? p.enabled : true,
+        intervalMs: typeof p.intervalMs === "number" ? p.intervalMs : 5 * 60_000,
+      };
+    }
+  } catch {}
+  return { enabled: true, intervalMs: 5 * 60_000 };
+}
+
+export function saveHealthSettings(s: HealthSettings) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  window.dispatchEvent(new CustomEvent(SETTINGS_EVENT, { detail: s }));
+}
+
+export function triggerRecheckAll() {
+  window.dispatchEvent(new CustomEvent(RECHECK_EVENT));
+}
+
+export function useHealthSettings(): [HealthSettings, (s: HealthSettings) => void] {
+  const [s, setS] = useState<HealthSettings>(() => loadHealthSettings());
+  useEffect(() => {
+    const handler = (e: Event) => setS((e as CustomEvent).detail || loadHealthSettings());
+    window.addEventListener(SETTINGS_EVENT, handler);
+    return () => window.removeEventListener(SETTINGS_EVENT, handler);
+  }, []);
+  const setter = (next: HealthSettings) => { saveHealthSettings(next); setS(next); };
+  return [s, setter];
+}
+
 /**
  * Lightweight URL healthcheck.
  *  - Validates URL syntax
  *  - Probes with no-cors fetch to detect DNS / network issues
- *  - Cannot read HTTP status (CORS); treat reachable as "ok"
+ *  - Reads interval from shared settings (localStorage), prop overrides if provided
+ *  - Listens to global 'recheck all' event
  */
-export function useUrlHealth(url: string, intervalMs = 0): HealthResult & { recheck: () => void } {
+export function useUrlHealth(url: string, intervalMsOverride?: number): HealthResult & { recheck: () => void } {
   const [result, setResult] = useState<HealthResult>({ status: "idle", message: "Belum dicek" });
+  const [settings, setSettings] = useState<HealthSettings>(() => loadHealthSettings());
+
+  useEffect(() => {
+    const handler = (e: Event) => setSettings((e as CustomEvent).detail || loadHealthSettings());
+    window.addEventListener(SETTINGS_EVENT, handler);
+    return () => window.removeEventListener(SETTINGS_EVENT, handler);
+  }, []);
 
   const check = useCallback(async () => {
     if (!url || !url.trim()) {
@@ -45,11 +105,21 @@ export function useUrlHealth(url: string, intervalMs = 0): HealthResult & { rech
   }, [url]);
 
   useEffect(() => { check(); }, [check]);
+
+  // Global recheck event
   useEffect(() => {
-    if (!intervalMs) return;
-    const i = setInterval(check, intervalMs);
+    const h = () => check();
+    window.addEventListener(RECHECK_EVENT, h);
+    return () => window.removeEventListener(RECHECK_EVENT, h);
+  }, [check]);
+
+  // Periodic interval (override > settings)
+  useEffect(() => {
+    const ms = intervalMsOverride !== undefined ? intervalMsOverride : (settings.enabled ? settings.intervalMs : 0);
+    if (!ms || ms <= 0) return;
+    const i = setInterval(check, ms);
     return () => clearInterval(i);
-  }, [check, intervalMs]);
+  }, [check, intervalMsOverride, settings.enabled, settings.intervalMs]);
 
   return { ...result, recheck: check };
 }
