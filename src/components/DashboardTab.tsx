@@ -1029,6 +1029,47 @@ export default function DashboardTab({
                 );
               })}
             </div>
+            {/* Pagination */}
+            <div className="px-3 py-2 border-t border-border flex items-center justify-between gap-2 text-xs">
+              <button onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage <= 1}
+                className="px-2 py-1 rounded border border-border disabled:opacity-40">‹ Prev</button>
+              <span className="text-muted-foreground">Halaman {safePage} dari {totalPages}</span>
+              <button onClick={() => setPage(Math.min(totalPages, safePage + 1))} disabled={safePage >= totalPages}
+                className="px-2 py-1 rounded border border-border disabled:opacity-40">Next ›</button>
+            </div>
+            {/* Import mode + Healthcheck controls */}
+            <div className="px-3 py-2 border-t border-border space-y-2 bg-muted/20">
+              <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                <span className="text-muted-foreground font-medium">Mode Import:</span>
+                <label className="inline-flex items-center gap-1">
+                  <input type="radio" name="importMode" checked={importMode === "merge"} onChange={() => setImportMode("merge")} />
+                  Merge (gabung)
+                </label>
+                <label className="inline-flex items-center gap-1">
+                  <input type="radio" name="importMode" checked={importMode === "overwrite"} onChange={() => setImportMode("overwrite")} />
+                  Overwrite (timpa)
+                </label>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                <span className="text-muted-foreground font-medium">Healthcheck:</span>
+                <label className="inline-flex items-center gap-1">
+                  <input type="checkbox" checked={healthSettings.enabled}
+                    onChange={(e) => setHealthSettings({ ...healthSettings, enabled: e.target.checked })} />
+                  Auto
+                </label>
+                <select value={healthSettings.intervalMs} disabled={!healthSettings.enabled}
+                  onChange={(e) => setHealthSettings({ ...healthSettings, intervalMs: Number(e.target.value) })}
+                  className="text-[11px] px-1.5 py-0.5 rounded border border-input bg-background disabled:opacity-50">
+                  {HEALTH_INTERVAL_OPTIONS.filter((o) => o.value > 0).map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <button onClick={() => triggerRecheckAll()}
+                  className="px-2 py-0.5 rounded border border-primary text-primary hover:bg-primary/10 inline-flex items-center gap-1">
+                  <RefreshCw size={11} /> Run Healthcheck Now
+                </button>
+              </div>
+            </div>
             <div className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <button onClick={exportHistoryJSON} disabled={history.length === 0}
