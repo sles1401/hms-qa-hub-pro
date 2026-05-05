@@ -128,6 +128,7 @@ export default function DashboardTab({
   submoduleStats, categories, journalEntries,
   globalEditMode = false, learnMoreUrl, onUpdateLearnMoreUrl,
   insightTitle, onUpdateInsightTitle, learnMoreLabel, onUpdateLearnMoreLabel,
+  exportFullConfig, importFullConfig,
 }: Props) {
   const [editMode, setEditMode] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
