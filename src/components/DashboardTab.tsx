@@ -1171,6 +1171,66 @@ export default function DashboardTab({
         </div>
       )}
 
+      {/* Health Log Panel */}
+      {showHealthLog && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={() => setShowHealthLog(false)}>
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={16} className="text-primary" />
+                <h3 className="font-semibold text-foreground">Healthcheck Log per URL</h3>
+              </div>
+              <button onClick={() => setShowHealthLog(false)} className="text-xs text-muted-foreground hover:text-foreground">Tutup</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {healthLog.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Belum ada hasil healthcheck.</p>
+              ) : healthLog.map((h) => (
+                <div key={h.id} className="border border-border rounded-lg p-3 text-xs space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                      h.status === "ok" ? "bg-emerald-100 text-emerald-700" :
+                      h.status === "error" ? "bg-red-100 text-red-700" :
+                      h.status === "warn" ? "bg-amber-100 text-amber-700" :
+                      "bg-muted text-muted-foreground"
+                    }`}>{h.status.toUpperCase()}</span>
+                    <span className="text-[10px] text-muted-foreground">{new Date(h.checkedAt).toLocaleString("id-ID")}</span>
+                  </div>
+                  <div className="text-foreground break-all">{h.url}</div>
+                  <div className="text-muted-foreground">{h.message}</div>
+                </div>
+              ))}
+            </div>
+            <div className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button onClick={() => downloadFile(`health-log-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(healthLog, null, 2), "application/json")}
+                  disabled={healthLog.length === 0}
+                  className="text-xs px-3 py-1.5 rounded border border-border hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
+                  <FileJson size={12} /> Export JSON
+                </button>
+                <button onClick={() => {
+                  const header = "id,url,status,message,checkedAt";
+                  const rows = healthLog.map((h) => [h.id, h.url, h.status, h.message, h.checkedAt].map(csvEscape).join(","));
+                  downloadFile(`health-log-${new Date().toISOString().slice(0,10)}.csv`, [header, ...rows].join("\n"), "text/csv");
+                }} disabled={healthLog.length === 0}
+                  className="text-xs px-3 py-1.5 rounded border border-border hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
+                  <FileSpreadsheet size={12} /> Export CSV
+                </button>
+                <button onClick={() => triggerRecheckAll()}
+                  className="text-xs px-3 py-1.5 rounded border border-primary text-primary hover:bg-primary/10 inline-flex items-center gap-1">
+                  <RefreshCw size={12} /> Run All Now
+                </button>
+              </div>
+              <button onClick={() => { if (window.confirm("Hapus seluruh log healthcheck?")) clearHealthLog(); }}
+                disabled={healthLog.length === 0}
+                className="text-xs px-3 py-1.5 rounded border border-border text-red-600 hover:bg-red-50 disabled:opacity-40">
+                Hapus Log
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ConfirmDialog
         open={!!confirm}
         title={confirm?.kind === "reset" ? "Reset ke Default" : "Konfirmasi Simpan Perubahan"}
