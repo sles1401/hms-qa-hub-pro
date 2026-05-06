@@ -17,7 +17,7 @@ import EnvSwitcher from "@/components/EnvSwitcher";
 import AdminPinGate, { getStoredPin } from "@/components/AdminPinGate";
 import {
   loadConfig, saveConfig, setActiveProjectId, getActiveProjectId,
-  getActiveEnv, setActiveEnv, appendAudit,
+  getActiveEnv, setActiveEnv, appendAudit, syncPassedToEnv,
   DEFAULT_SUBMODULE_STATS, type AppConfig, type SubmoduleStats, type Environment,
 } from "@/lib/store";
 
@@ -86,6 +86,14 @@ export default function Index() {
         [activeSubmodule.id]: stats,
       },
     });
+    audit("Update Submodule Stats", `${activeSubmodule.name} (P:${stats.passed}/F:${stats.failed}/Pn:${stats.pending})`);
+  };
+
+  const handleSyncToProduction = () => {
+    saveConfig(config, projectId, env);
+    const r = syncPassedToEnv(projectId, "staging", "production");
+    audit("Sync to Production", `${r.copied} submodule disalin`);
+    return r;
   };
 
   const currentSubmoduleStats = activeSubmodule
