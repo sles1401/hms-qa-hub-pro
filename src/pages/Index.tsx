@@ -165,6 +165,8 @@ export default function Index() {
               onUpdateLearnMoreLabel={(learnMoreLabel) => { update({ learnMoreLabel }); audit("Update Learn More Label", learnMoreLabel); }}
               exportFullConfig={() => config}
               importFullConfig={(data) => { setConfig((prev) => ({ ...prev, ...data })); audit("Import Admin Settings", "full config"); }}
+              env={env}
+              onSyncToProduction={env === "staging" ? handleSyncToProduction : undefined}
             />
           )}
           {activeTab === "test-plan" && (
