@@ -74,6 +74,9 @@ interface Props {
   /** Optional: full app config snapshot for export, and importer for restore */
   exportFullConfig?: () => any;
   importFullConfig?: (data: any) => void;
+  /** Current environment & sync handler */
+  env?: "staging" | "production";
+  onSyncToProduction?: () => { copied: number };
 }
 
 type FieldKey = "insightText" | "insightTitle" | "learnMoreLabel" | "learnMoreUrl";
@@ -131,6 +134,7 @@ export default function DashboardTab({
   globalEditMode = false, learnMoreUrl, onUpdateLearnMoreUrl,
   insightTitle, onUpdateInsightTitle, learnMoreLabel, onUpdateLearnMoreLabel,
   exportFullConfig, importFullConfig,
+  env = "staging", onSyncToProduction,
 }: Props) {
   const [editMode, setEditMode] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
