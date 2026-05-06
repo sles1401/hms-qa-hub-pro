@@ -10,6 +10,7 @@ const CLASSIFICATION_LABELS: { key: keyof SubmoduleStats["classification"]; labe
   { key: "integrationTest", label: "Integration Test", color: "hsl(210, 70%, 50%)" },
   { key: "uiUxCheck", label: "UI/UX Check", color: "hsl(280, 60%, 55%)" },
   { key: "securityRole", label: "Security/Role", color: "hsl(0, 0%, 45%)" },
+  { key: "regression", label: "Regression", color: "hsl(25, 90%, 55%)" },
 ];
 
 interface Props {
