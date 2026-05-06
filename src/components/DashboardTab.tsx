@@ -695,6 +695,10 @@ export default function DashboardTab({
                 className="text-xs px-2.5 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-muted inline-flex items-center gap-1">
                 <History size={12} /> History ({history.length})
               </button>
+              <button onClick={() => setShowHealthLog(true)}
+                className="text-xs px-2.5 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-muted inline-flex items-center gap-1">
+                <ShieldCheck size={12} /> Health Log ({healthLog.length})
+              </button>
               <button onClick={() => setConfirm({ kind: "reset" })}
                 className="text-xs px-2.5 py-1.5 rounded-md border border-amber-300 text-amber-700 hover:bg-amber-50 inline-flex items-center gap-1">
                 <RotateCcw size={12} /> Reset Defaults
