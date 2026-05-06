@@ -576,6 +576,32 @@ export default function DashboardTab({
     setEditingProfile(false);
   };
 
+  // Generate Summary Report (CSV download — Excel-compatible)
+  const generateReport = () => {
+    const passRate = stats.totalTC > 0 ? ((stats.passed / stats.totalTC) * 100).toFixed(1) : "0";
+    const lines: string[] = [];
+    lines.push(`HMS QA HUB - Summary Report`);
+    lines.push(`Environment,${env}`);
+    lines.push(`Generated At,${new Date().toLocaleString("id-ID")}`);
+    lines.push(``);
+    lines.push(`Metric,Value`);
+    lines.push(`Total Test Cases,${stats.totalTC}`);
+    lines.push(`Passed,${stats.passed}`);
+    lines.push(`Failed,${stats.failed}`);
+    lines.push(`Pending,${stats.pending}`);
+    lines.push(`Pass Rate,${passRate}%`);
+    lines.push(``);
+    lines.push(`Submodule,Total,Passed,Failed,Pending`);
+    for (const cat of categories) {
+      for (const sub of cat.submodules) {
+        const s = submoduleStats[sub.id];
+        if (!s) continue;
+        lines.push([sub.name, s.totalTC, s.passed, s.failed, s.pending].map((x) => csvEscape(String(x))).join(","));
+      }
+    }
+    downloadFile(`qa-summary-${env}-${new Date().toISOString().slice(0,10)}.csv`, lines.join("\n"), "text/csv");
+  };
+
   return (
     <div className="space-y-6">
       {/* Greeting Banner */}
