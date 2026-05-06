@@ -78,18 +78,20 @@ export function useUrlHealth(url: string, intervalMsOverride?: number): HealthRe
   }, []);
 
   const check = useCallback(async () => {
-    if (!url || !url.trim()) {
-      setResult({ status: "warn", message: "URL kosong" });
-      return;
-    }
+    const emit = (status: HealthStatus, message: string) => {
+      const checkedAt = new Date().toISOString();
+      setResult({ status, message, checkedAt });
+      window.dispatchEvent(new CustomEvent("hms-qa-health-result", {
+        detail: { url, status, message, checkedAt },
+      }));
+    };
+    if (!url || !url.trim()) { setResult({ status: "warn", message: "URL kosong" }); return; }
     let parsed: URL;
     try { parsed = new URL(url.trim()); } catch {
-      setResult({ status: "error", message: "Format URL invalid" });
-      return;
+      emit("error", "Format URL invalid"); return;
     }
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-      setResult({ status: "error", message: "Protokol harus http/https" });
-      return;
+      emit("error", "Protokol harus http/https"); return;
     }
     setResult((p) => ({ ...p, status: "checking", message: "Mengecek..." }));
     try {
@@ -97,10 +99,10 @@ export function useUrlHealth(url: string, intervalMsOverride?: number): HealthRe
       const t = setTimeout(() => ctrl.abort(), 7000);
       await fetch(parsed.toString(), { method: "HEAD", mode: "no-cors", signal: ctrl.signal });
       clearTimeout(t);
-      setResult({ status: "ok", message: "Tautan dapat dijangkau", checkedAt: new Date().toISOString() });
+      emit("ok", "Tautan dapat dijangkau");
     } catch (e: any) {
       const msg = e?.name === "AbortError" ? "Timeout (>7s)" : "Tautan tidak dapat dijangkau";
-      setResult({ status: "error", message: msg, checkedAt: new Date().toISOString() });
+      emit("error", msg);
     }
   }, [url]);
 

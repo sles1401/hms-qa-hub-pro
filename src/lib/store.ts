@@ -28,6 +28,7 @@ export interface TestClassification {
   integrationTest: number;
   uiUxCheck: number;
   securityRole: number;
+  regression: number;
 }
 
 export interface SubmoduleStats {
@@ -197,8 +198,26 @@ export const DEFAULT_SUBMODULE_STATS: SubmoduleStats = {
     integrationTest: 0,
     uiUxCheck: 0,
     securityRole: 0,
+    regression: 0,
   },
 };
+
+/** Sync submodules with passed > 0 from one env to another (merge only passed stats). */
+export function syncPassedToEnv(projectId: string, fromEnv: Environment, toEnv: Environment): { copied: number } {
+  const src = loadConfig(projectId, fromEnv);
+  const dst = loadConfig(projectId, toEnv);
+  let copied = 0;
+  const merged = { ...dst.submoduleStats };
+  for (const [id, s] of Object.entries(src.submoduleStats || {})) {
+    if (s && s.passed > 0) {
+      merged[id] = { ...(merged[id] || DEFAULT_SUBMODULE_STATS), ...s };
+      copied++;
+    }
+  }
+  const next: AppConfig = { ...dst, submoduleStats: merged };
+  saveConfig(next, projectId, toEnv);
+  return { copied };
+}
 
 const DEFAULT_CONFIG: AppConfig = {
   projectTitle: "New Project",

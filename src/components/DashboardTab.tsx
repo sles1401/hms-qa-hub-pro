@@ -6,6 +6,7 @@ import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import UrlHealthBadge from "@/components/UrlHealthBadge";
 import { useHealthSettings, triggerRecheckAll, HEALTH_INTERVAL_OPTIONS } from "@/hooks/useUrlHealth";
+import { useHealthLog } from "@/hooks/useHealthLog";
 
 // Field-level validators
 function validateTitle(v: string): string | null {
@@ -73,6 +74,9 @@ interface Props {
   /** Optional: full app config snapshot for export, and importer for restore */
   exportFullConfig?: () => any;
   importFullConfig?: (data: any) => void;
+  /** Current environment & sync handler */
+  env?: "staging" | "production";
+  onSyncToProduction?: () => { copied: number };
 }
 
 type FieldKey = "insightText" | "insightTitle" | "learnMoreLabel" | "learnMoreUrl";
@@ -130,6 +134,7 @@ export default function DashboardTab({
   globalEditMode = false, learnMoreUrl, onUpdateLearnMoreUrl,
   insightTitle, onUpdateInsightTitle, learnMoreLabel, onUpdateLearnMoreLabel,
   exportFullConfig, importFullConfig,
+  env = "staging", onSyncToProduction,
 }: Props) {
   const [editMode, setEditMode] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
@@ -178,8 +183,16 @@ export default function DashboardTab({
   // Health settings (interval/enable for all URL badges)
   const [healthSettings, setHealthSettings] = useHealthSettings();
 
-  // Import mode (merge | overwrite)
-  const [importMode, setImportMode] = useState<"merge" | "overwrite">("merge");
+  // Import mode (merge | overwrite) — persisted
+  const IMPORT_MODE_KEY = "hms-qa-import-mode";
+  const [importMode, setImportMode] = useState<"merge" | "overwrite">(
+    () => (localStorage.getItem(IMPORT_MODE_KEY) as any) === "overwrite" ? "overwrite" : "merge"
+  );
+  useEffect(() => { localStorage.setItem(IMPORT_MODE_KEY, importMode); }, [importMode]);
+
+  // Health log
+  const [healthLog, clearHealthLog] = useHealthLog();
+  const [showHealthLog, setShowHealthLog] = useState(false);
 
   // Snapshot of last saved values for Undo
   const lastSnapshot = useRef<Partial<Record<FieldKey, string>>>({});
@@ -563,6 +576,32 @@ export default function DashboardTab({
     setEditingProfile(false);
   };
 
+  // Generate Summary Report (CSV download — Excel-compatible)
+  const generateReport = () => {
+    const passRate = stats.totalTC > 0 ? ((stats.passed / stats.totalTC) * 100).toFixed(1) : "0";
+    const lines: string[] = [];
+    lines.push(`HMS QA HUB - Summary Report`);
+    lines.push(`Environment,${env}`);
+    lines.push(`Generated At,${new Date().toLocaleString("id-ID")}`);
+    lines.push(``);
+    lines.push(`Metric,Value`);
+    lines.push(`Total Test Cases,${stats.totalTC}`);
+    lines.push(`Passed,${stats.passed}`);
+    lines.push(`Failed,${stats.failed}`);
+    lines.push(`Pending,${stats.pending}`);
+    lines.push(`Pass Rate,${passRate}%`);
+    lines.push(``);
+    lines.push(`Submodule,Total,Passed,Failed,Pending`);
+    for (const cat of categories) {
+      for (const sub of cat.submodules) {
+        const s = submoduleStats[sub.id];
+        if (!s) continue;
+        lines.push([sub.name, s.totalTC, s.passed, s.failed, s.pending].map((x) => csvEscape(String(x))).join(","));
+      }
+    }
+    downloadFile(`qa-summary-${env}-${new Date().toISOString().slice(0,10)}.csv`, lines.join("\n"), "text/csv");
+  };
+
   return (
     <div className="space-y-6">
       {/* Greeting Banner */}
@@ -656,6 +695,10 @@ export default function DashboardTab({
                 className="text-xs px-2.5 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-muted inline-flex items-center gap-1">
                 <History size={12} /> History ({history.length})
               </button>
+              <button onClick={() => setShowHealthLog(true)}
+                className="text-xs px-2.5 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-muted inline-flex items-center gap-1">
+                <ShieldCheck size={12} /> Health Log ({healthLog.length})
+              </button>
               <button onClick={() => setConfirm({ kind: "reset" })}
                 className="text-xs px-2.5 py-1.5 rounded-md border border-amber-300 text-amber-700 hover:bg-amber-50 inline-flex items-center gap-1">
                 <RotateCcw size={12} /> Reset Defaults
@@ -666,6 +709,22 @@ export default function DashboardTab({
                 <RefreshCw size={12} /> Run Healthcheck Now
               </button>
             </>
+          )}
+          <button
+            onClick={generateReport}
+            className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30">
+            <FileSpreadsheet size={14} /> Generate Report
+          </button>
+          {env === "staging" && onSyncToProduction && (
+            <button
+              onClick={() => {
+                if (!window.confirm("Salin semua test case berstatus 'Passed' dari Staging ke Production?")) return;
+                const r = onSyncToProduction();
+                alert(`Sync selesai. ${r.copied} submodule disalin ke Production.`);
+              }}
+              className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30">
+              <Upload size={14} /> Sync to Production
+            </button>
           )}
           <button
             onClick={() => { setEditMode(!editMode); if (!editMode) onEditStats(); }}
@@ -1106,6 +1165,66 @@ export default function DashboardTab({
                 disabled={history.length === 0}
                 className="text-xs px-3 py-1.5 rounded border border-border text-red-600 hover:bg-red-50 disabled:opacity-40">
                 Hapus Riwayat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Health Log Panel */}
+      {showHealthLog && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={() => setShowHealthLog(false)}>
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={16} className="text-primary" />
+                <h3 className="font-semibold text-foreground">Healthcheck Log per URL</h3>
+              </div>
+              <button onClick={() => setShowHealthLog(false)} className="text-xs text-muted-foreground hover:text-foreground">Tutup</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {healthLog.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Belum ada hasil healthcheck.</p>
+              ) : healthLog.map((h) => (
+                <div key={h.id} className="border border-border rounded-lg p-3 text-xs space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                      h.status === "ok" ? "bg-emerald-100 text-emerald-700" :
+                      h.status === "error" ? "bg-red-100 text-red-700" :
+                      h.status === "warn" ? "bg-amber-100 text-amber-700" :
+                      "bg-muted text-muted-foreground"
+                    }`}>{h.status.toUpperCase()}</span>
+                    <span className="text-[10px] text-muted-foreground">{new Date(h.checkedAt).toLocaleString("id-ID")}</span>
+                  </div>
+                  <div className="text-foreground break-all">{h.url}</div>
+                  <div className="text-muted-foreground">{h.message}</div>
+                </div>
+              ))}
+            </div>
+            <div className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button onClick={() => downloadFile(`health-log-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(healthLog, null, 2), "application/json")}
+                  disabled={healthLog.length === 0}
+                  className="text-xs px-3 py-1.5 rounded border border-border hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
+                  <FileJson size={12} /> Export JSON
+                </button>
+                <button onClick={() => {
+                  const header = "id,url,status,message,checkedAt";
+                  const rows = healthLog.map((h) => [h.id, h.url, h.status, h.message, h.checkedAt].map(csvEscape).join(","));
+                  downloadFile(`health-log-${new Date().toISOString().slice(0,10)}.csv`, [header, ...rows].join("\n"), "text/csv");
+                }} disabled={healthLog.length === 0}
+                  className="text-xs px-3 py-1.5 rounded border border-border hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
+                  <FileSpreadsheet size={12} /> Export CSV
+                </button>
+                <button onClick={() => triggerRecheckAll()}
+                  className="text-xs px-3 py-1.5 rounded border border-primary text-primary hover:bg-primary/10 inline-flex items-center gap-1">
+                  <RefreshCw size={12} /> Run All Now
+                </button>
+              </div>
+              <button onClick={() => { if (window.confirm("Hapus seluruh log healthcheck?")) clearHealthLog(); }}
+                disabled={healthLog.length === 0}
+                className="text-xs px-3 py-1.5 rounded border border-border text-red-600 hover:bg-red-50 disabled:opacity-40">
+                Hapus Log
               </button>
             </div>
           </div>
