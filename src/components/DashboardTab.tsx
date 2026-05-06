@@ -6,6 +6,7 @@ import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import UrlHealthBadge from "@/components/UrlHealthBadge";
 import { useHealthSettings, triggerRecheckAll, HEALTH_INTERVAL_OPTIONS } from "@/hooks/useUrlHealth";
+import { useHealthLog } from "@/hooks/useHealthLog";
 
 // Field-level validators
 function validateTitle(v: string): string | null {
@@ -178,8 +179,16 @@ export default function DashboardTab({
   // Health settings (interval/enable for all URL badges)
   const [healthSettings, setHealthSettings] = useHealthSettings();
 
-  // Import mode (merge | overwrite)
-  const [importMode, setImportMode] = useState<"merge" | "overwrite">("merge");
+  // Import mode (merge | overwrite) — persisted
+  const IMPORT_MODE_KEY = "hms-qa-import-mode";
+  const [importMode, setImportMode] = useState<"merge" | "overwrite">(
+    () => (localStorage.getItem(IMPORT_MODE_KEY) as any) === "overwrite" ? "overwrite" : "merge"
+  );
+  useEffect(() => { localStorage.setItem(IMPORT_MODE_KEY, importMode); }, [importMode]);
+
+  // Health log
+  const [healthLog, clearHealthLog] = useHealthLog();
+  const [showHealthLog, setShowHealthLog] = useState(false);
 
   // Snapshot of last saved values for Undo
   const lastSnapshot = useRef<Partial<Record<FieldKey, string>>>({});
