@@ -132,14 +132,16 @@ export default function Index() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <RoleSwitcher />
             <button
               onClick={handleToggleAdmin}
-              className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
+              disabled={!isAdmin && !globalEditMode}
+              className={`text-xs px-3 py-1.5 rounded-md border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                 globalEditMode
                   ? "bg-primary text-primary-foreground border-primary shadow-sm"
                   : "border-border text-muted-foreground hover:bg-muted"
               }`}
-              title="Toggle View / Admin mode (PIN protected)"
+              title={isAdmin ? "Toggle View / Admin mode (PIN protected)" : "Switch ke role Admin QA dulu"}
             >
               {globalEditMode ? "🔓 Admin Mode" : "🔒 View Mode"}
             </button>
