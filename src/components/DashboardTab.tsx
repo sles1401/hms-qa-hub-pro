@@ -125,6 +125,84 @@ function useCountdown(target: string) {
 
 const PIE_COLORS = ["#10b981", "#ef4444", "#f59e0b", "#3b82f6", "#a855f7", "#06b6d4"];
 
+const REGRESSION_SNAPSHOT_KEY = "hms-qa-regression-snapshot";
+
+function RegressionAlert({ categories, submoduleStats, env }: { categories: Category[]; submoduleStats: Record<string, SubmoduleStats>; env: string }) {
+  const targets = useMemo(() => {
+    return categories.filter((c) => /inventory|hauling/i.test(c.name) || /inventory|hauling/i.test(c.id));
+  }, [categories]);
+
+  const rates = useMemo(() => {
+    const out: Record<string, { name: string; rate: number; total: number; regressionTC: number }> = {};
+    for (const cat of targets) {
+      let passed = 0, total = 0, regTC = 0;
+      for (const sub of cat.submodules) {
+        const s = submoduleStats[sub.id];
+        if (!s) continue;
+        passed += s.passed; total += s.totalTC;
+        regTC += s.classification?.regression ?? 0;
+      }
+      out[cat.id] = { name: cat.name, rate: total > 0 ? (passed / total) * 100 : 0, total, regressionTC: regTC };
+    }
+    return out;
+  }, [targets, submoduleStats]);
+
+  const [alerts, setAlerts] = useState<{ id: string; name: string; before: number; after: number }[]>([]);
+
+  useEffect(() => {
+    let snap: Record<string, number> = {};
+    try { snap = JSON.parse(localStorage.getItem(REGRESSION_SNAPSHOT_KEY) || "{}"); } catch {}
+    const out: { id: string; name: string; before: number; after: number }[] = [];
+    for (const [id, info] of Object.entries(rates)) {
+      const key = `${env}:${id}`;
+      const prev = snap[key];
+      if (typeof prev === "number" && info.total > 0 && info.rate < prev - 3) {
+        out.push({ id, name: info.name, before: prev, after: info.rate });
+      }
+    }
+    setAlerts(out);
+  }, [rates, env]);
+
+  const acknowledge = () => {
+    let snap: Record<string, number> = {};
+    try { snap = JSON.parse(localStorage.getItem(REGRESSION_SNAPSHOT_KEY) || "{}"); } catch {}
+    for (const [id, info] of Object.entries(rates)) snap[`${env}:${id}`] = info.rate;
+    localStorage.setItem(REGRESSION_SNAPSHOT_KEY, JSON.stringify(snap));
+    setAlerts([]);
+  };
+
+  // Auto-seed snapshot if empty
+  useEffect(() => {
+    const raw = localStorage.getItem(REGRESSION_SNAPSHOT_KEY);
+    if (!raw && Object.keys(rates).length > 0) {
+      const snap: Record<string, number> = {};
+      for (const [id, info] of Object.entries(rates)) snap[`${env}:${id}`] = info.rate;
+      localStorage.setItem(REGRESSION_SNAPSHOT_KEY, JSON.stringify(snap));
+    }
+  }, [rates, env]);
+
+  if (alerts.length === 0) return null;
+  return (
+    <div className="rounded-xl border-l-4 border-red-500 bg-red-50 dark:bg-red-950/30 p-4 flex items-start gap-3">
+      <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={20} />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-red-800 dark:text-red-300">Regression Alert — Pass Rate menurun</p>
+        <ul className="text-xs text-red-700 dark:text-red-200 mt-1 space-y-0.5">
+          {alerts.map((a) => (
+            <li key={a.id}>
+              <span className="font-medium">{a.name}</span>: {a.before.toFixed(1)}% → {a.after.toFixed(1)}% ({(a.after - a.before).toFixed(1)}%)
+            </li>
+          ))}
+        </ul>
+      </div>
+      <button onClick={acknowledge} className="text-xs px-3 py-1.5 rounded border border-red-300 text-red-700 hover:bg-red-100">
+        Acknowledge
+      </button>
+    </div>
+  );
+}
+
+
 const FIELD_LABELS: Record<FieldKey, string> = {
   insightText: "Insight Text",
   insightTitle: "Insight Title",
