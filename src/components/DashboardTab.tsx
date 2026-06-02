@@ -719,25 +719,27 @@ export default function DashboardTab({
             </>
           )}
           <button
-            onClick={generateReport}
-            className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30">
-            <FileSpreadsheet size={14} /> Generate Report
+            onClick={() => setShowReport(true)}
+            disabled={!isAdmin}
+            title={isAdmin ? "Generate report" : "Hanya Admin QA yang dapat generate report"}
+            className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-40 disabled:cursor-not-allowed">
+            {isAdmin ? <FileSpreadsheet size={14} /> : <Lock size={14} />} Generate Report
           </button>
           {env === "staging" && onSyncToProduction && (
             <button
-              onClick={() => {
-                if (!window.confirm("Salin semua test case berstatus 'Passed' dari Staging ke Production?")) return;
-                const r = onSyncToProduction();
-                alert(`Sync selesai. ${r.copied} submodule disalin ke Production.`);
-              }}
-              className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30">
-              <Upload size={14} /> Sync to Production
+              onClick={() => setShowSyncDiff(true)}
+              disabled={!isAdmin}
+              title={isAdmin ? "Preview & sync to production" : "Hanya Admin QA yang dapat sync"}
+              className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30 disabled:opacity-40 disabled:cursor-not-allowed">
+              {isAdmin ? <Upload size={14} /> : <Lock size={14} />} Sync to Production
             </button>
           )}
           <button
-            onClick={() => { setEditMode(!editMode); if (!editMode) onEditStats(); }}
-            className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors ${editMode ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted text-muted-foreground"}`}>
-            <Edit2 size={14} /> {editMode ? "Editing..." : "Edit Stats"}
+            onClick={() => { if (!isAdmin) return; setEditMode(!editMode); if (!editMode) onEditStats(); }}
+            disabled={!isAdmin}
+            title={isAdmin ? "Edit stats" : "Hanya Admin QA yang dapat mengubah stats"}
+            className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${editMode ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted text-muted-foreground"}`}>
+            {isAdmin ? <Edit2 size={14} /> : <Lock size={14} />} {editMode ? "Editing..." : "Edit Stats"}
           </button>
         </div>
       </div>
