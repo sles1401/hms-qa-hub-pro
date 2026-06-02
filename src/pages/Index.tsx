@@ -13,8 +13,12 @@ import TemplateLibraryTab from "@/components/TemplateLibraryTab";
 import PassedWithNotesTab from "@/components/PassedWithNotesTab";
 import BugTrackerTab from "@/components/BugTrackerTab";
 import AuditTrailTab from "@/components/AuditTrailTab";
+import DevControlCenterTab from "@/components/DevControlCenterTab";
+import FigmaLinkTab from "@/components/FigmaLinkTab";
 import EnvSwitcher from "@/components/EnvSwitcher";
+import RoleSwitcher from "@/components/RoleSwitcher";
 import AdminPinGate, { getStoredPin } from "@/components/AdminPinGate";
+import { useRole } from "@/hooks/useRole";
 import {
   loadConfig, saveConfig, setActiveProjectId, getActiveProjectId,
   getActiveEnv, setActiveEnv, appendAudit, syncPassedToEnv,
@@ -32,6 +36,7 @@ export default function Index() {
   const [activeSubmodule, setActiveSubmodule] = useState<{ id: string; name: string } | null>(null);
   const [globalEditMode, setGlobalEditMode] = useState(false);
   const [pinGate, setPinGate] = useState<"verify" | "setup" | null>(null);
+  const { isAdmin } = useRole();
 
   const handleToggleAdmin = () => {
     if (globalEditMode) {
@@ -127,14 +132,16 @@ export default function Index() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <RoleSwitcher />
             <button
               onClick={handleToggleAdmin}
-              className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
+              disabled={!isAdmin && !globalEditMode}
+              className={`text-xs px-3 py-1.5 rounded-md border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                 globalEditMode
                   ? "bg-primary text-primary-foreground border-primary shadow-sm"
                   : "border-border text-muted-foreground hover:bg-muted"
               }`}
-              title="Toggle View / Admin mode (PIN protected)"
+              title={isAdmin ? "Toggle View / Admin mode (PIN protected)" : "Switch ke role Admin QA dulu"}
             >
               {globalEditMode ? "🔓 Admin Mode" : "🔒 View Mode"}
             </button>
@@ -167,6 +174,8 @@ export default function Index() {
               importFullConfig={(data) => { setConfig((prev) => ({ ...prev, ...data })); audit("Import Admin Settings", "full config"); }}
               env={env}
               onSyncToProduction={env === "staging" ? handleSyncToProduction : undefined}
+              projectId={projectId}
+              projectTitle={config.projectTitle}
             />
           )}
           {activeTab === "test-plan" && (
@@ -197,7 +206,29 @@ export default function Index() {
               qaCategories={config.qaCategories || []} onUpdateCategories={(qaCategories) => update({ qaCategories })} />
           )}
           {activeTab === "daily-journal" && (
-            <DailyJournalTab entries={config.journalEntries} onUpdate={(journalEntries) => update({ journalEntries })} />
+            <DailyJournalTab
+              entries={config.journalEntries}
+              onUpdate={(journalEntries) => update({ journalEntries })}
+              devReports={config.devReports || []}
+              onMarkImported={(ids) => {
+                update({ devReports: (config.devReports || []).map((r) => ids.includes(r.id) ? { ...r, importedToJournal: true } : r) });
+                audit("Smart Import Journal", `${ids.length} dev reports`);
+              }}
+            />
+          )}
+          {activeTab === "dev-control" && (
+            <DevControlCenterTab
+              reports={config.devReports || []}
+              onUpdate={(devReports) => update({ devReports })}
+              onAudit={audit}
+            />
+          )}
+          {activeTab === "figma-link" && (
+            <FigmaLinkTab
+              url={config.figmaUrl || ""}
+              canEdit={isAdmin && globalEditMode}
+              onUpdateUrl={(figmaUrl) => { update({ figmaUrl }); audit("Update Figma URL", figmaUrl || "(empty)"); }}
+            />
           )}
           {activeTab === "release-notes" && (
             <ReleaseNotesTab notes={config.releaseNotes} onUpdate={(releaseNotes) => update({ releaseNotes })} />

@@ -1,14 +1,18 @@
 import { useState } from "react";
-import { Plus, Calendar, Edit2, Trash2, X, BookOpen } from "lucide-react";
-import { type JournalEntry } from "@/lib/store";
+import { Plus, Calendar, Edit2, Trash2, X, BookOpen, Zap } from "lucide-react";
+import { type JournalEntry, type DevReport } from "@/lib/store";
 
 interface Props {
   entries: JournalEntry[];
   onUpdate: (entries: JournalEntry[]) => void;
+  devReports?: DevReport[];
+  onMarkImported?: (ids: string[]) => void;
 }
 
-export default function DailyJournalTab({ entries, onUpdate }: Props) {
+export default function DailyJournalTab({ entries, onUpdate, devReports = [], onMarkImported }: Props) {
   const [showModal, setShowModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [taskCompleted, setTaskCompleted] = useState("");
@@ -78,13 +82,24 @@ export default function DailyJournalTab({ entries, onUpdate }: Props) {
           </h2>
           <p className="text-sm text-muted-foreground">Activity log & daily progress tracker</p>
         </div>
-        <button
-          onClick={() => { resetForm(); setShowModal(true); }}
-          className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          <Plus size={14} />
-          New Entry
-        </button>
+        <div className="flex gap-2">
+          {devReports.length > 0 && (
+            <button
+              onClick={() => { setSelectedIds([]); setShowImport(true); }}
+              className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+              title="Import dari Dev Control Center"
+            >
+              <Zap size={14} /> Smart Import
+            </button>
+          )}
+          <button
+            onClick={() => { resetForm(); setShowModal(true); }}
+            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Plus size={14} />
+            New Entry
+          </button>
+        </div>
       </div>
 
       {/* Motivational Quote */}
@@ -209,6 +224,56 @@ export default function DailyJournalTab({ entries, onUpdate }: Props) {
               </button>
               <button onClick={handleSave} disabled={!taskCompleted.trim()} className="px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50">
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showImport && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowImport(false)}>
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><Zap size={18} className="text-emerald-600"/> Smart Import from Dev Reports</h2>
+              <button onClick={() => setShowImport(false)} className="p-1.5 rounded hover:bg-muted"><X size={18}/></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-2">
+              {devReports.filter((r) => !r.importedToJournal).length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Semua dev report sudah di-import.</p>
+              ) : devReports.filter((r) => !r.importedToJournal).map((r) => (
+                <label key={r.id} className="flex items-start gap-2 p-3 rounded border border-border hover:bg-muted/50 cursor-pointer">
+                  <input type="checkbox" className="mt-1 accent-primary"
+                    checked={selectedIds.includes(r.id)}
+                    onChange={(e) => setSelectedIds(e.target.checked ? [...selectedIds, r.id] : selectedIds.filter((x) => x !== r.id))} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">{r.featureName}</p>
+                    <p className="text-[10px] text-muted-foreground">{r.status} · {r.impactArea || "no impact"}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{r.rawReport}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 p-5 border-t border-border">
+              <button onClick={() => setShowImport(false)} className="px-4 py-2 text-sm rounded border border-border text-muted-foreground">Cancel</button>
+              <button onClick={() => {
+                const picked = devReports.filter((r) => selectedIds.includes(r.id));
+                if (picked.length === 0) return;
+                const today = new Date().toISOString().split("T")[0];
+                const newEntries: JournalEntry[] = picked.map((r) => ({
+                  id: crypto.randomUUID(),
+                  date: today,
+                  taskCompleted: `[${r.featureName}] — ${r.status}`,
+                  blockers: r.impactArea ? `Regression area: ${r.impactArea}` : "",
+                  nextPlan: r.rawReport.slice(0, 280),
+                  createdAt: new Date().toISOString(),
+                }));
+                onUpdate([...entries, ...newEntries]);
+                onMarkImported?.(selectedIds);
+                setShowImport(false);
+                setSelectedIds([]);
+              }} disabled={selectedIds.length === 0}
+                className="px-4 py-2 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50">
+                Import {selectedIds.length > 0 && `(${selectedIds.length})`}
               </button>
             </div>
           </div>

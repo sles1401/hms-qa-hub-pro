@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, Calendar, Sparkles, Check, Undo2, History, RotateCcw, AlertCircle, FileJson, FileSpreadsheet, ShieldCheck, ShieldAlert, Ban, Upload, RefreshCw, Zap, Hand } from "lucide-react";
+import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, Calendar, Sparkles, Check, Undo2, History, RotateCcw, AlertCircle, FileJson, FileSpreadsheet, ShieldCheck, ShieldAlert, Ban, Upload, RefreshCw, Zap, Hand, AlertTriangle, Lock } from "lucide-react";
 import { type AppStats, type SubmoduleStats, type JournalEntry, type Category, DASHBOARD_DEFAULTS, isValidGoogleDriveUrl, validateDeadlineStrict, type DashboardHistoryEntry, type HistorySource } from "@/lib/store";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
@@ -7,6 +7,9 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import UrlHealthBadge from "@/components/UrlHealthBadge";
 import { useHealthSettings, triggerRecheckAll, HEALTH_INTERVAL_OPTIONS } from "@/hooks/useUrlHealth";
 import { useHealthLog } from "@/hooks/useHealthLog";
+import { useRole } from "@/hooks/useRole";
+import ReportDialog from "@/components/ReportDialog";
+import SyncDiffDialog from "@/components/SyncDiffDialog";
 
 // Field-level validators
 function validateTitle(v: string): string | null {
@@ -77,6 +80,8 @@ interface Props {
   /** Current environment & sync handler */
   env?: "staging" | "production";
   onSyncToProduction?: () => { copied: number };
+  projectId?: string;
+  projectTitle?: string;
 }
 
 type FieldKey = "insightText" | "insightTitle" | "learnMoreLabel" | "learnMoreUrl";
@@ -120,6 +125,84 @@ function useCountdown(target: string) {
 
 const PIE_COLORS = ["#10b981", "#ef4444", "#f59e0b", "#3b82f6", "#a855f7", "#06b6d4"];
 
+const REGRESSION_SNAPSHOT_KEY = "hms-qa-regression-snapshot";
+
+function RegressionAlert({ categories, submoduleStats, env }: { categories: Category[]; submoduleStats: Record<string, SubmoduleStats>; env: string }) {
+  const targets = useMemo(() => {
+    return categories.filter((c) => /inventory|hauling/i.test(c.name) || /inventory|hauling/i.test(c.id));
+  }, [categories]);
+
+  const rates = useMemo(() => {
+    const out: Record<string, { name: string; rate: number; total: number; regressionTC: number }> = {};
+    for (const cat of targets) {
+      let passed = 0, total = 0, regTC = 0;
+      for (const sub of cat.submodules) {
+        const s = submoduleStats[sub.id];
+        if (!s) continue;
+        passed += s.passed; total += s.totalTC;
+        regTC += s.classification?.regression ?? 0;
+      }
+      out[cat.id] = { name: cat.name, rate: total > 0 ? (passed / total) * 100 : 0, total, regressionTC: regTC };
+    }
+    return out;
+  }, [targets, submoduleStats]);
+
+  const [alerts, setAlerts] = useState<{ id: string; name: string; before: number; after: number }[]>([]);
+
+  useEffect(() => {
+    let snap: Record<string, number> = {};
+    try { snap = JSON.parse(localStorage.getItem(REGRESSION_SNAPSHOT_KEY) || "{}"); } catch {}
+    const out: { id: string; name: string; before: number; after: number }[] = [];
+    for (const [id, info] of Object.entries(rates)) {
+      const key = `${env}:${id}`;
+      const prev = snap[key];
+      if (typeof prev === "number" && info.total > 0 && info.rate < prev - 3) {
+        out.push({ id, name: info.name, before: prev, after: info.rate });
+      }
+    }
+    setAlerts(out);
+  }, [rates, env]);
+
+  const acknowledge = () => {
+    let snap: Record<string, number> = {};
+    try { snap = JSON.parse(localStorage.getItem(REGRESSION_SNAPSHOT_KEY) || "{}"); } catch {}
+    for (const [id, info] of Object.entries(rates)) snap[`${env}:${id}`] = info.rate;
+    localStorage.setItem(REGRESSION_SNAPSHOT_KEY, JSON.stringify(snap));
+    setAlerts([]);
+  };
+
+  // Auto-seed snapshot if empty
+  useEffect(() => {
+    const raw = localStorage.getItem(REGRESSION_SNAPSHOT_KEY);
+    if (!raw && Object.keys(rates).length > 0) {
+      const snap: Record<string, number> = {};
+      for (const [id, info] of Object.entries(rates)) snap[`${env}:${id}`] = info.rate;
+      localStorage.setItem(REGRESSION_SNAPSHOT_KEY, JSON.stringify(snap));
+    }
+  }, [rates, env]);
+
+  if (alerts.length === 0) return null;
+  return (
+    <div className="rounded-xl border-l-4 border-red-500 bg-red-50 dark:bg-red-950/30 p-4 flex items-start gap-3">
+      <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={20} />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-red-800 dark:text-red-300">Regression Alert — Pass Rate menurun</p>
+        <ul className="text-xs text-red-700 dark:text-red-200 mt-1 space-y-0.5">
+          {alerts.map((a) => (
+            <li key={a.id}>
+              <span className="font-medium">{a.name}</span>: {a.before.toFixed(1)}% → {a.after.toFixed(1)}% ({(a.after - a.before).toFixed(1)}%)
+            </li>
+          ))}
+        </ul>
+      </div>
+      <button onClick={acknowledge} className="text-xs px-3 py-1.5 rounded border border-red-300 text-red-700 hover:bg-red-100">
+        Acknowledge
+      </button>
+    </div>
+  );
+}
+
+
 const FIELD_LABELS: Record<FieldKey, string> = {
   insightText: "Insight Text",
   insightTitle: "Insight Title",
@@ -134,8 +217,11 @@ export default function DashboardTab({
   globalEditMode = false, learnMoreUrl, onUpdateLearnMoreUrl,
   insightTitle, onUpdateInsightTitle, learnMoreLabel, onUpdateLearnMoreLabel,
   exportFullConfig, importFullConfig,
-  env = "staging", onSyncToProduction,
+  env = "staging", onSyncToProduction, projectId = "", projectTitle = "",
 }: Props) {
+  const { isAdmin } = useRole();
+  const [showReport, setShowReport] = useState(false);
+  const [showSyncDiff, setShowSyncDiff] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [nameDraft, setNameDraft] = useState(userName);
@@ -675,6 +761,10 @@ export default function DashboardTab({
         )}
       </div>
 
+      <RegressionAlert categories={categories} submoduleStats={submoduleStats} env={env} />
+
+
+
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 className="text-xl font-bold text-foreground">Dashboard</h2>
@@ -711,25 +801,27 @@ export default function DashboardTab({
             </>
           )}
           <button
-            onClick={generateReport}
-            className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30">
-            <FileSpreadsheet size={14} /> Generate Report
+            onClick={() => setShowReport(true)}
+            disabled={!isAdmin}
+            title={isAdmin ? "Generate report" : "Hanya Admin QA yang dapat generate report"}
+            className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-40 disabled:cursor-not-allowed">
+            {isAdmin ? <FileSpreadsheet size={14} /> : <Lock size={14} />} Generate Report
           </button>
           {env === "staging" && onSyncToProduction && (
             <button
-              onClick={() => {
-                if (!window.confirm("Salin semua test case berstatus 'Passed' dari Staging ke Production?")) return;
-                const r = onSyncToProduction();
-                alert(`Sync selesai. ${r.copied} submodule disalin ke Production.`);
-              }}
-              className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30">
-              <Upload size={14} /> Sync to Production
+              onClick={() => setShowSyncDiff(true)}
+              disabled={!isAdmin}
+              title={isAdmin ? "Preview & sync to production" : "Hanya Admin QA yang dapat sync"}
+              className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30 disabled:opacity-40 disabled:cursor-not-allowed">
+              {isAdmin ? <Upload size={14} /> : <Lock size={14} />} Sync to Production
             </button>
           )}
           <button
-            onClick={() => { setEditMode(!editMode); if (!editMode) onEditStats(); }}
-            className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors ${editMode ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted text-muted-foreground"}`}>
-            <Edit2 size={14} /> {editMode ? "Editing..." : "Edit Stats"}
+            onClick={() => { if (!isAdmin) return; setEditMode(!editMode); if (!editMode) onEditStats(); }}
+            disabled={!isAdmin}
+            title={isAdmin ? "Edit stats" : "Hanya Admin QA yang dapat mengubah stats"}
+            className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${editMode ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted text-muted-foreground"}`}>
+            {isAdmin ? <Edit2 size={14} /> : <Lock size={14} />} {editMode ? "Editing..." : "Edit Stats"}
           </button>
         </div>
       </div>
@@ -1273,6 +1365,30 @@ export default function DashboardTab({
           setRollbackConfirm(null);
         }}
         onCancel={() => setRollbackConfirm(null)}
+      />
+
+      <ReportDialog
+        open={showReport}
+        onClose={() => setShowReport(false)}
+        input={{
+          projectTitle: projectTitle || "HMS QA HUB",
+          env,
+          stats,
+          categories,
+          submoduleStats,
+        }}
+      />
+
+      <SyncDiffDialog
+        open={showSyncDiff}
+        onClose={() => setShowSyncDiff(false)}
+        projectId={projectId}
+        categories={categories}
+        stagingStats={submoduleStats}
+        onConfirm={() => {
+          const r = onSyncToProduction?.();
+          if (r) alert(`Sync selesai. ${r.copied} submodule disalin ke Production.`);
+        }}
       />
     </div>
   );

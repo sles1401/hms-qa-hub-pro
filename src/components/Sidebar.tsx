@@ -3,7 +3,7 @@ import {
   Database, Truck, ChevronDown, ChevronRight,
   Settings, LayoutDashboard, FileText, Table, Menu, X, HelpCircle, Bug, BookOpen, Rocket,
   Sun, Moon, Download, Upload, Pencil, Check, Plus, Trash2, FolderOpen, Copy,
-  CheckCircle2, History, ShieldAlert,
+  CheckCircle2, History, ShieldAlert, Code2, Figma,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Category, type ProjectEntry, type AppConfig, loadConfig, getProjects, getActiveProjectId, createProject, deleteProject, duplicateProject, importProject } from "@/lib/store";
@@ -205,6 +205,7 @@ export default function Sidebar({
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "test-plan", label: "Strategic Test Plan", icon: FileText },
     { id: "test-case", label: "Test Case Library", icon: Table },
+    { id: "dev-control", label: "Dev Control Center", icon: Code2 },
     { id: "defect-tracker", label: "Defect Tracker", icon: Bug },
     { id: "bug-tracker", label: "Bug Tracker (SLA)", icon: ShieldAlert },
     { id: "passed-notes", label: "Passed with Notes", icon: CheckCircle2 },
@@ -212,6 +213,7 @@ export default function Sidebar({
     { id: "daily-journal", label: "Daily Journal", icon: BookOpen },
     { id: "release-notes", label: "Release Notes", icon: Rocket },
     { id: "template-library", label: "Template Library", icon: FileText },
+    { id: "figma-link", label: "Figma Link", icon: Figma },
     { id: "audit-trail", label: "Audit Trail", icon: History },
   ];
 

@@ -95,6 +95,16 @@ export interface AuditLogEntry {
 
 export type Environment = "staging" | "production";
 
+export interface DevReport {
+  id: string;
+  featureName: string;
+  rawReport: string;
+  impactArea: string;
+  status: "Developing" | "Ready for QA" | "Verified";
+  createdAt: string;
+  importedToJournal?: boolean;
+}
+
 export interface AppConfig {
   projectTitle: string;
   categories: Category[];
@@ -109,14 +119,16 @@ export interface AppConfig {
   journalEntries: JournalEntry[];
   releaseNotes: ReleaseNote[];
   templateUrls: Record<string, string>;
-  releaseDeadline: string; // ISO date string for countdown
-  userName: string; // for humanize greeting
+  releaseDeadline: string;
+  userName: string;
   passedWithNotes: PassedWithNoteEntry[];
   bugs: BugItem[];
   auditLog: AuditLogEntry[];
   learnMoreUrl: string;
   insightTitle: string;
   learnMoreLabel: string;
+  devReports: DevReport[];
+  figmaUrl: string;
 }
 
 export interface ProjectEntry {
@@ -271,6 +283,8 @@ const DEFAULT_CONFIG: AppConfig = {
   learnMoreUrl: "https://www.istqb.org/",
   insightTitle: "QA Insight of the Day",
   learnMoreLabel: "Learn More",
+  devReports: [],
+  figmaUrl: "",
 };
 
 const PROJECTS_KEY = "hms-qa-projects";
@@ -462,6 +476,8 @@ export function loadConfig(projectId?: string, env?: Environment): AppConfig {
         learnMoreUrl: parsed.learnMoreUrl ?? DEFAULT_CONFIG.learnMoreUrl,
         insightTitle: parsed.insightTitle ?? DEFAULT_CONFIG.insightTitle,
         learnMoreLabel: parsed.learnMoreLabel ?? DEFAULT_CONFIG.learnMoreLabel,
+        devReports: parsed.devReports ?? DEFAULT_CONFIG.devReports,
+        figmaUrl: parsed.figmaUrl ?? DEFAULT_CONFIG.figmaUrl,
       };
     }
   } catch {}
