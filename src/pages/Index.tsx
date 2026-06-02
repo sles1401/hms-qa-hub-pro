@@ -174,6 +174,8 @@ export default function Index() {
               importFullConfig={(data) => { setConfig((prev) => ({ ...prev, ...data })); audit("Import Admin Settings", "full config"); }}
               env={env}
               onSyncToProduction={env === "staging" ? handleSyncToProduction : undefined}
+              projectId={projectId}
+              projectTitle={config.projectTitle}
             />
           )}
           {activeTab === "test-plan" && (
