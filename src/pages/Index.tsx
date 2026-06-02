@@ -13,8 +13,12 @@ import TemplateLibraryTab from "@/components/TemplateLibraryTab";
 import PassedWithNotesTab from "@/components/PassedWithNotesTab";
 import BugTrackerTab from "@/components/BugTrackerTab";
 import AuditTrailTab from "@/components/AuditTrailTab";
+import DevControlCenterTab from "@/components/DevControlCenterTab";
+import FigmaLinkTab from "@/components/FigmaLinkTab";
 import EnvSwitcher from "@/components/EnvSwitcher";
+import RoleSwitcher from "@/components/RoleSwitcher";
 import AdminPinGate, { getStoredPin } from "@/components/AdminPinGate";
+import { useRole } from "@/hooks/useRole";
 import {
   loadConfig, saveConfig, setActiveProjectId, getActiveProjectId,
   getActiveEnv, setActiveEnv, appendAudit, syncPassedToEnv,
