@@ -1284,6 +1284,30 @@ export default function DashboardTab({
         }}
         onCancel={() => setRollbackConfirm(null)}
       />
+
+      <ReportDialog
+        open={showReport}
+        onClose={() => setShowReport(false)}
+        input={{
+          projectTitle: projectTitle || "HMS QA HUB",
+          env,
+          stats,
+          categories,
+          submoduleStats,
+        }}
+      />
+
+      <SyncDiffDialog
+        open={showSyncDiff}
+        onClose={() => setShowSyncDiff(false)}
+        projectId={projectId}
+        categories={categories}
+        stagingStats={submoduleStats}
+        onConfirm={() => {
+          const r = onSyncToProduction?.();
+          if (r) alert(`Sync selesai. ${r.copied} submodule disalin ke Production.`);
+        }}
+      />
     </div>
   );
 }
