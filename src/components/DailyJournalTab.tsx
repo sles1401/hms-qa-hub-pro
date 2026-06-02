@@ -1,14 +1,18 @@
 import { useState } from "react";
-import { Plus, Calendar, Edit2, Trash2, X, BookOpen } from "lucide-react";
-import { type JournalEntry } from "@/lib/store";
+import { Plus, Calendar, Edit2, Trash2, X, BookOpen, Zap } from "lucide-react";
+import { type JournalEntry, type DevReport } from "@/lib/store";
 
 interface Props {
   entries: JournalEntry[];
   onUpdate: (entries: JournalEntry[]) => void;
+  devReports?: DevReport[];
+  onMarkImported?: (ids: string[]) => void;
 }
 
-export default function DailyJournalTab({ entries, onUpdate }: Props) {
+export default function DailyJournalTab({ entries, onUpdate, devReports = [], onMarkImported }: Props) {
   const [showModal, setShowModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [taskCompleted, setTaskCompleted] = useState("");
