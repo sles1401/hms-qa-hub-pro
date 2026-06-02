@@ -36,6 +36,7 @@ export default function Index() {
   const [activeSubmodule, setActiveSubmodule] = useState<{ id: string; name: string } | null>(null);
   const [globalEditMode, setGlobalEditMode] = useState(false);
   const [pinGate, setPinGate] = useState<"verify" | "setup" | null>(null);
+  const { isAdmin } = useRole();
 
   const handleToggleAdmin = () => {
     if (globalEditMode) {
