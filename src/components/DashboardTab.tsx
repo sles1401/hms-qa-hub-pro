@@ -80,6 +80,8 @@ interface Props {
   /** Current environment & sync handler */
   env?: "staging" | "production";
   onSyncToProduction?: () => { copied: number };
+  projectId?: string;
+  projectTitle?: string;
 }
 
 type FieldKey = "insightText" | "insightTitle" | "learnMoreLabel" | "learnMoreUrl";
@@ -137,8 +139,11 @@ export default function DashboardTab({
   globalEditMode = false, learnMoreUrl, onUpdateLearnMoreUrl,
   insightTitle, onUpdateInsightTitle, learnMoreLabel, onUpdateLearnMoreLabel,
   exportFullConfig, importFullConfig,
-  env = "staging", onSyncToProduction,
+  env = "staging", onSyncToProduction, projectId = "", projectTitle = "",
 }: Props) {
+  const { isAdmin } = useRole();
+  const [showReport, setShowReport] = useState(false);
+  const [showSyncDiff, setShowSyncDiff] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [nameDraft, setNameDraft] = useState(userName);
