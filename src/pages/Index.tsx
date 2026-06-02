@@ -206,7 +206,29 @@ export default function Index() {
               qaCategories={config.qaCategories || []} onUpdateCategories={(qaCategories) => update({ qaCategories })} />
           )}
           {activeTab === "daily-journal" && (
-            <DailyJournalTab entries={config.journalEntries} onUpdate={(journalEntries) => update({ journalEntries })} />
+            <DailyJournalTab
+              entries={config.journalEntries}
+              onUpdate={(journalEntries) => update({ journalEntries })}
+              devReports={config.devReports || []}
+              onMarkImported={(ids) => {
+                update({ devReports: (config.devReports || []).map((r) => ids.includes(r.id) ? { ...r, importedToJournal: true } : r) });
+                audit("Smart Import Journal", `${ids.length} dev reports`);
+              }}
+            />
+          )}
+          {activeTab === "dev-control" && (
+            <DevControlCenterTab
+              reports={config.devReports || []}
+              onUpdate={(devReports) => update({ devReports })}
+              onAudit={audit}
+            />
+          )}
+          {activeTab === "figma-link" && (
+            <FigmaLinkTab
+              url={config.figmaUrl || ""}
+              canEdit={isAdmin && globalEditMode}
+              onUpdateUrl={(figmaUrl) => { update({ figmaUrl }); audit("Update Figma URL", figmaUrl || "(empty)"); }}
+            />
           )}
           {activeTab === "release-notes" && (
             <ReleaseNotesTab notes={config.releaseNotes} onUpdate={(releaseNotes) => update({ releaseNotes })} />
