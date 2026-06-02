@@ -683,6 +683,10 @@ export default function DashboardTab({
         )}
       </div>
 
+      <RegressionAlert categories={categories} submoduleStats={submoduleStats} env={env} />
+
+
+
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 className="text-xl font-bold text-foreground">Dashboard</h2>
