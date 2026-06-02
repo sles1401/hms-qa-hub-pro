@@ -82,13 +82,24 @@ export default function DailyJournalTab({ entries, onUpdate, devReports = [], on
           </h2>
           <p className="text-sm text-muted-foreground">Activity log & daily progress tracker</p>
         </div>
-        <button
-          onClick={() => { resetForm(); setShowModal(true); }}
-          className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          <Plus size={14} />
-          New Entry
-        </button>
+        <div className="flex gap-2">
+          {devReports.length > 0 && (
+            <button
+              onClick={() => { setSelectedIds([]); setShowImport(true); }}
+              className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+              title="Import dari Dev Control Center"
+            >
+              <Zap size={14} /> Smart Import
+            </button>
+          )}
+          <button
+            onClick={() => { resetForm(); setShowModal(true); }}
+            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Plus size={14} />
+            New Entry
+          </button>
+        </div>
       </div>
 
       {/* Motivational Quote */}
