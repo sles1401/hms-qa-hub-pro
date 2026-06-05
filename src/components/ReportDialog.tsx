@@ -14,6 +14,8 @@ interface Props {
 export default function ReportDialog({ open, onClose, input, onGenerated }: Props) {
   const [format, setFormat] = useState<ReportFormat>("pdf");
   const [template, setTemplate] = useState<ReportTemplate>("ringkas");
+  const [showSettings, setShowSettings] = useState(false);
+  const { isAdmin } = useRole();
   if (!open) return null;
 
   const handleRun = () => {
