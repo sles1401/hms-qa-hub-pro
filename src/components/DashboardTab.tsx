@@ -240,6 +240,7 @@ export default function DashboardTab({
   const { isAdmin } = useRole();
   const [showReport, setShowReport] = useState(false);
   const [showSyncDiff, setShowSyncDiff] = useState(false);
+  const [showRegressionSettings, setShowRegressionSettings] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [nameDraft, setNameDraft] = useState(userName);
