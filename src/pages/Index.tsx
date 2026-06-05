@@ -200,7 +200,27 @@ export default function Index() {
               onUpdate={(passedWithNotes) => update({ passedWithNotes })} onAudit={audit} />
           )}
           {activeTab === "audit-trail" && (
-            <AuditTrailTab log={config.auditLog} onClear={() => update({ auditLog: [] })} />
+            <AuditTrailTab
+              log={config.auditLog}
+              onClear={() => update({ auditLog: [] })}
+              onImport={(entries, mode) => {
+                if (mode === "overwrite") {
+                  update({ auditLog: entries.slice(0, 200) });
+                  audit("Import Audit Log (overwrite)", `${entries.length} entries`);
+                } else {
+                  const map = new Map<string, typeof entries[number]>();
+                  [...entries, ...(config.auditLog || [])].forEach((e) => map.set(e.id, e));
+                  const merged = Array.from(map.values())
+                    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+                    .slice(0, 200);
+                  update({ auditLog: merged });
+                  audit("Import Audit Log (merge)", `${entries.length} entries`);
+                }
+              }}
+            />
+          )}
+          {activeTab === "users" && isAdmin && (
+            <UserManagementTab onAudit={audit} />
           )}
           {activeTab === "faq-logic" && (
             <QAHubTab questions={config.qaQuestions} onUpdate={(qaQuestions) => update({ qaQuestions })}
