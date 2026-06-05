@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { X, FileSpreadsheet, FileText, FileDown } from "lucide-react";
+import { X, FileSpreadsheet, FileText, FileDown, Settings } from "lucide-react";
 import { generateReport, type ReportFormat, type ReportTemplate, type ReportInput } from "@/lib/reports";
+import ReportSettingsDialog from "@/components/ReportSettingsDialog";
+import { useRole } from "@/hooks/useRole";
 
 interface Props {
   open: boolean;
