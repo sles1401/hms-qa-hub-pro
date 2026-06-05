@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
-import { History, Trash2, Download, Search } from "lucide-react";
+import { useState, useMemo, useRef } from "react";
+import { History, Trash2, Download, Search, Upload, AlertCircle } from "lucide-react";
 import { type AuditLogEntry } from "@/lib/store";
 
 interface Props {
   log: AuditLogEntry[];
   onClear: () => void;
+  onImport?: (entries: AuditLogEntry[], mode: "merge" | "overwrite") => void;
 }
 
 function csvEsc(v: any) { return `"${String(v ?? "").replace(/"/g, '""').replace(/\r?\n/g, " ")}"`; }
