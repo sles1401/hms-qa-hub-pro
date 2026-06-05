@@ -196,6 +196,7 @@ export default function Sidebar({
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(projectTitle);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const { isAdmin } = useRole();
 
   useEffect(() => { setTitleDraft(projectTitle); }, [projectTitle]);
 
@@ -216,7 +217,9 @@ export default function Sidebar({
     { id: "template-library", label: "Template Library", icon: FileText },
     { id: "figma-link", label: "Figma Link", icon: Figma },
     { id: "audit-trail", label: "Audit Trail", icon: History },
+    ...(isAdmin ? [{ id: "users", label: "User Management", icon: UsersRound }] : []),
   ];
+
 
   return (
     <>
