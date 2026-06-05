@@ -1416,6 +1416,13 @@ export default function DashboardTab({
           if (r) alert(`Sync selesai. ${r.copied} submodule disalin ke Production.`);
         }}
       />
+
+      <RegressionSettingsDialog
+        open={showRegressionSettings}
+        onClose={() => setShowRegressionSettings(false)}
+        categories={categories}
+        onSaved={() => window.dispatchEvent(new CustomEvent("hms-qa-regression-settings-change"))}
+      />
     </div>
   );
 }
