@@ -15,6 +15,7 @@ import BugTrackerTab from "@/components/BugTrackerTab";
 import AuditTrailTab from "@/components/AuditTrailTab";
 import DevControlCenterTab from "@/components/DevControlCenterTab";
 import FigmaLinkTab from "@/components/FigmaLinkTab";
+import UserManagementTab from "@/components/UserManagementTab";
 import EnvSwitcher from "@/components/EnvSwitcher";
 import RoleSwitcher from "@/components/RoleSwitcher";
 import AdminPinGate, { getStoredPin } from "@/components/AdminPinGate";
