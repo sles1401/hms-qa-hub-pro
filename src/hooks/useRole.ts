@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 export type Role = "admin" | "viewer";
 const KEY = "hms-qa-role";
 const EVT = "hms-qa-role-change";
+const USERS_EVT = "hms-qa-users-change";
 
 export function getStoredRole(): Role {
   const v = localStorage.getItem(KEY);
@@ -19,9 +20,11 @@ export function useRole() {
   useEffect(() => {
     const h = () => setRole(getStoredRole());
     window.addEventListener(EVT, h);
+    window.addEventListener(USERS_EVT, h);
     window.addEventListener("storage", h);
     return () => {
       window.removeEventListener(EVT, h);
+      window.removeEventListener(USERS_EVT, h);
       window.removeEventListener("storage", h);
     };
   }, []);
