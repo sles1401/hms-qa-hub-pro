@@ -15,7 +15,10 @@ function dl(name: string, content: string, mime: string) {
   setTimeout(() => URL.revokeObjectURL(u), 500);
 }
 
-export default function AuditTrailTab({ log, onClear }: Props) {
+export default function AuditTrailTab({ log, onClear, onImport }: Props) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importErr, setImportErr] = useState<string | null>(null);
+  const [importMode, setImportMode] = useState<"merge" | "overwrite">("merge");
   const [user, setUser] = useState("");
   const [target, setTarget] = useState("");
   const [from, setFrom] = useState("");
