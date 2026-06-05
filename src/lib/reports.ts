@@ -106,11 +106,24 @@ export function generateReport(input: ReportInput, format: ReportFormat, templat
   }
 
   // PDF
+  const settings = getReportSettings();
   const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const isEnterprise = template === "enterprise";
+  const heading = isEnterprise && settings.heading
+    ? settings.heading
+    : `HMS QA HUB - ${isEnterprise ? "Enterprise" : "Ringkas"} Report`;
+
+  // Logo (enterprise only)
+  if (isEnterprise && settings.logoDataUrl) {
+    try { doc.addImage(settings.logoDataUrl, "PNG", 480, 24, 70, 40); } catch {}
+  }
+
   doc.setFontSize(16);
-  doc.text(`HMS QA HUB - ${template === "ringkas" ? "Ringkas" : "Enterprise"} Report`, 40, 40);
+  doc.text(heading, 40, 40);
   doc.setFontSize(10);
-  doc.text(`${input.projectTitle} · ${input.env}`, 40, 58);
+  const subline = `${input.projectTitle} · ${input.env}` +
+    (isEnterprise && settings.releaseDate ? ` · Release: ${settings.releaseDate}` : "");
+  doc.text(subline, 40, 58);
 
   autoTable(doc, {
     startY: 80,
@@ -130,13 +143,14 @@ export function generateReport(input: ReportInput, format: ReportFormat, templat
     styles: { fontSize: 8 },
   });
 
-  if (template === "enterprise") {
+  if (isEnterprise) {
     doc.setFontSize(8);
     const pageCount = (doc as any).internal.getNumberOfPages();
+    const footer = settings.footerText || "Developed by Suryani Lestari";
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.text(
-        `Generated ${new Date().toLocaleString("id-ID")} · Page ${i}/${pageCount} · Developed by Suryani Lestari`,
+        `Generated ${new Date().toLocaleString("id-ID")} · Page ${i}/${pageCount} · ${footer}`,
         40,
         doc.internal.pageSize.getHeight() - 20
       );
