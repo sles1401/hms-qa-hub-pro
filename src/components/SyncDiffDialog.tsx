@@ -1,5 +1,12 @@
-import { X, Upload } from "lucide-react";
+import { X, Upload, Download } from "lucide-react";
 import { loadConfig, type SubmoduleStats, type Category } from "@/lib/store";
+
+function csvEsc(v: any) { return `"${String(v ?? "").replace(/"/g, '""').replace(/\r?\n/g, " ")}"`; }
+function downloadCsv(name: string, content: string) {
+  const u = URL.createObjectURL(new Blob([content], { type: "text/csv" }));
+  const a = document.createElement("a"); a.href = u; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(u), 500);
+}
 
 interface Props {
   open: boolean;
