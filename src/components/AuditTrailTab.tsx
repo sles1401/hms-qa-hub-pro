@@ -48,6 +48,65 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
     dl(`audit-${Date.now()}.csv`, lines.join("\n"), "text/csv");
   };
 
+  const parseCsv = (text: string): AuditLogEntry[] => {
+    const lines = text.split(/\r?\n/).filter(Boolean);
+    if (lines.length < 2) return [];
+    const header = lines[0].toLowerCase();
+    const hasHeader = /id|who|action|target|at/.test(header);
+    const data = hasHeader ? lines.slice(1) : lines;
+    return data.map((ln) => {
+      // simple CSV parse handling quoted fields
+      const cells: string[] = [];
+      let cur = "", inQ = false;
+      for (let i = 0; i < ln.length; i++) {
+        const c = ln[i];
+        if (c === '"') {
+          if (inQ && ln[i + 1] === '"') { cur += '"'; i++; } else inQ = !inQ;
+        } else if (c === "," && !inQ) { cells.push(cur); cur = ""; }
+        else cur += c;
+      }
+      cells.push(cur);
+      return {
+        id: cells[0] || `a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        who: cells[1] || "Unknown",
+        action: cells[2] || "",
+        target: cells[3] || "",
+        at: cells[4] || new Date().toISOString(),
+      };
+    }).filter((e) => e.action || e.target);
+  };
+
+  const handleImport = (file: File) => {
+    setImportErr(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const txt = String(reader.result || "");
+        let entries: AuditLogEntry[] = [];
+        if (file.name.toLowerCase().endsWith(".json")) {
+          const parsed = JSON.parse(txt);
+          if (!Array.isArray(parsed)) throw new Error("JSON harus berupa array");
+          entries = parsed.map((p: any) => ({
+            id: String(p.id || `a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`),
+            who: String(p.who || "Unknown"),
+            action: String(p.action || ""),
+            target: String(p.target || ""),
+            at: String(p.at || new Date().toISOString()),
+          }));
+        } else {
+          entries = parseCsv(txt);
+        }
+        if (entries.length === 0) { setImportErr("Tidak ada entri valid ditemukan"); return; }
+        if (importMode === "overwrite" && !confirm(`Overwrite seluruh log dengan ${entries.length} entri?`)) return;
+        onImport?.(entries, importMode);
+      } catch (e: any) {
+        setImportErr(e?.message || "Gagal memparse file");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
