@@ -3,8 +3,9 @@ import {
   Database, Truck, ChevronDown, ChevronRight,
   Settings, LayoutDashboard, FileText, Table, Menu, X, HelpCircle, Bug, BookOpen, Rocket,
   Sun, Moon, Download, Upload, Pencil, Check, Plus, Trash2, FolderOpen, Copy,
-  CheckCircle2, History, ShieldAlert, Code2, Figma,
+  CheckCircle2, History, ShieldAlert, Code2, Figma, UsersRound,
 } from "lucide-react";
+import { useRole } from "@/hooks/useRole";
 import { cn } from "@/lib/utils";
 import { type Category, type ProjectEntry, type AppConfig, loadConfig, getProjects, getActiveProjectId, createProject, deleteProject, duplicateProject, importProject } from "@/lib/store";
 import { Switch } from "@/components/ui/switch";
