@@ -116,7 +116,22 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
           </h2>
           <p className="text-sm text-muted-foreground">{filtered.length} dari {log.length} aktivitas.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap items-center">
+          {onImport && (
+            <>
+              <select value={importMode} onChange={(e) => setImportMode(e.target.value as any)}
+                className="text-xs px-2 py-1.5 rounded border border-input bg-background">
+                <option value="merge">Merge</option>
+                <option value="overwrite">Overwrite</option>
+              </select>
+              <input ref={fileRef} type="file" accept=".json,.csv" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }} />
+              <button onClick={() => fileRef.current?.click()}
+                className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                <Upload size={12}/> Import JSON/CSV
+              </button>
+            </>
+          )}
           <button onClick={exportJson} disabled={filtered.length === 0}
             className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg border border-border hover:bg-muted text-muted-foreground disabled:opacity-50">
             <Download size={12}/> JSON
@@ -133,6 +148,9 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
           )}
         </div>
       </div>
+      {importErr && (
+        <div className="text-xs text-red-600 inline-flex items-center gap-1"><AlertCircle size={12}/>{importErr}</div>
+      )}
 
       <div className="bg-card rounded-xl border border-border p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
         <select value={user} onChange={(e) => setUser(e.target.value)} className="text-xs px-2 py-1.5 rounded border border-input bg-background">
