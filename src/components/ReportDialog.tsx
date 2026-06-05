@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { X, FileSpreadsheet, FileText, FileDown } from "lucide-react";
+import { X, FileSpreadsheet, FileText, FileDown, Settings } from "lucide-react";
 import { generateReport, type ReportFormat, type ReportTemplate, type ReportInput } from "@/lib/reports";
+import ReportSettingsDialog from "@/components/ReportSettingsDialog";
+import { useRole } from "@/hooks/useRole";
 
 interface Props {
   open: boolean;
@@ -12,6 +14,8 @@ interface Props {
 export default function ReportDialog({ open, onClose, input, onGenerated }: Props) {
   const [format, setFormat] = useState<ReportFormat>("pdf");
   const [template, setTemplate] = useState<ReportTemplate>("ringkas");
+  const [showSettings, setShowSettings] = useState(false);
+  const { isAdmin } = useRole();
   if (!open) return null;
 
   const handleRun = () => {
@@ -72,13 +76,22 @@ export default function ReportDialog({ open, onClose, input, onGenerated }: Prop
             </div>
           </div>
         </div>
-        <div className="p-5 border-t border-border flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm rounded border border-border text-muted-foreground">Cancel</button>
-          <button onClick={handleRun} className="px-4 py-2 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90">
-            Generate
-          </button>
+        <div className="p-5 border-t border-border flex justify-between items-center gap-2">
+          {template === "enterprise" && isAdmin ? (
+            <button onClick={() => setShowSettings(true)}
+              className="text-xs inline-flex items-center gap-1 px-3 py-2 rounded border border-border text-muted-foreground hover:bg-muted">
+              <Settings size={12}/> Edit Template
+            </button>
+          ) : <span/>}
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 text-sm rounded border border-border text-muted-foreground">Cancel</button>
+            <button onClick={handleRun} className="px-4 py-2 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90">
+              Generate
+            </button>
+          </div>
         </div>
       </div>
+      <ReportSettingsDialog open={showSettings} onClose={() => setShowSettings(false)} />
     </div>
   );
 }

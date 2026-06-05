@@ -1,5 +1,12 @@
-import { X, Upload } from "lucide-react";
+import { X, Upload, Download } from "lucide-react";
 import { loadConfig, type SubmoduleStats, type Category } from "@/lib/store";
+
+function csvEsc(v: any) { return `"${String(v ?? "").replace(/"/g, '""').replace(/\r?\n/g, " ")}"`; }
+function downloadCsv(name: string, content: string) {
+  const u = URL.createObjectURL(new Blob([content], { type: "text/csv" }));
+  const a = document.createElement("a"); a.href = u; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(u), 500);
+}
 
 interface Props {
   open: boolean;
@@ -73,12 +80,26 @@ export default function SyncDiffDialog({ open, onClose, onConfirm, projectId, ca
             </table>
           )}
         </div>
-        <div className="p-5 border-t border-border flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm rounded border border-border text-muted-foreground">Batal</button>
-          <button onClick={() => { onConfirm(); onClose(); }} disabled={diffs.length === 0}
-            className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
-            Konfirmasi Sync
+        <div className="p-5 border-t border-border flex justify-between items-center gap-2">
+          <button
+            onClick={() => {
+              const header = "Submodule,Category,Total Before,Total After,Passed Before,Passed After,Delta Passed";
+              const lines = diffs.map((d) => [
+                d.name, d.cat, d.totalBefore, d.totalAfter, d.passedBefore, d.passedAfter, d.passedAfter - d.passedBefore,
+              ].map(csvEsc).join(","));
+              downloadCsv(`sync-diff-${new Date().toISOString().slice(0,10)}.csv`, [header, ...lines].join("\n"));
+            }}
+            disabled={diffs.length === 0}
+            className="inline-flex items-center gap-1 px-3 py-2 text-xs rounded border border-border text-muted-foreground hover:bg-muted disabled:opacity-50">
+            <Download size={12}/> Download Diff CSV
           </button>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 text-sm rounded border border-border text-muted-foreground">Batal</button>
+            <button onClick={() => { onConfirm(); onClose(); }} disabled={diffs.length === 0}
+              className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+              Konfirmasi Sync
+            </button>
+          </div>
         </div>
       </div>
     </div>

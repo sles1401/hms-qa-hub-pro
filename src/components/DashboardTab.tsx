@@ -10,6 +10,8 @@ import { useHealthLog } from "@/hooks/useHealthLog";
 import { useRole } from "@/hooks/useRole";
 import ReportDialog from "@/components/ReportDialog";
 import SyncDiffDialog from "@/components/SyncDiffDialog";
+import RegressionSettingsDialog from "@/components/RegressionSettingsDialog";
+import { getRegressionSettings } from "@/lib/adminSettings";
 
 // Field-level validators
 function validateTitle(v: string): string | null {
@@ -128,9 +130,24 @@ const PIE_COLORS = ["#10b981", "#ef4444", "#f59e0b", "#3b82f6", "#a855f7", "#06b
 const REGRESSION_SNAPSHOT_KEY = "hms-qa-regression-snapshot";
 
 function RegressionAlert({ categories, submoduleStats, env }: { categories: Category[]; submoduleStats: Record<string, SubmoduleStats>; env: string }) {
+  const [settingsVersion, setSettingsVersion] = useState(0);
+  useEffect(() => {
+    const h = () => setSettingsVersion((v) => v + 1);
+    window.addEventListener("storage", h);
+    window.addEventListener("hms-qa-regression-settings-change", h);
+    return () => {
+      window.removeEventListener("storage", h);
+      window.removeEventListener("hms-qa-regression-settings-change", h);
+    };
+  }, []);
+  const regSettings = useMemo(() => getRegressionSettings(), [settingsVersion]);
+
   const targets = useMemo(() => {
+    if (regSettings.watchedCategoryIds.length > 0) {
+      return categories.filter((c) => regSettings.watchedCategoryIds.includes(c.id));
+    }
     return categories.filter((c) => /inventory|hauling/i.test(c.name) || /inventory|hauling/i.test(c.id));
-  }, [categories]);
+  }, [categories, regSettings]);
 
   const rates = useMemo(() => {
     const out: Record<string, { name: string; rate: number; total: number; regressionTC: number }> = {};
@@ -153,15 +170,16 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
     let snap: Record<string, number> = {};
     try { snap = JSON.parse(localStorage.getItem(REGRESSION_SNAPSHOT_KEY) || "{}"); } catch {}
     const out: { id: string; name: string; before: number; after: number }[] = [];
+    const threshold = regSettings.thresholdPct;
     for (const [id, info] of Object.entries(rates)) {
       const key = `${env}:${id}`;
       const prev = snap[key];
-      if (typeof prev === "number" && info.total > 0 && info.rate < prev - 3) {
+      if (typeof prev === "number" && info.total > 0 && info.rate < prev - threshold) {
         out.push({ id, name: info.name, before: prev, after: info.rate });
       }
     }
     setAlerts(out);
-  }, [rates, env]);
+  }, [rates, env, regSettings.thresholdPct]);
 
   const acknowledge = () => {
     let snap: Record<string, number> = {};
@@ -222,6 +240,7 @@ export default function DashboardTab({
   const { isAdmin } = useRole();
   const [showReport, setShowReport] = useState(false);
   const [showSyncDiff, setShowSyncDiff] = useState(false);
+  const [showRegressionSettings, setShowRegressionSettings] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [nameDraft, setNameDraft] = useState(userName);
@@ -799,6 +818,13 @@ export default function DashboardTab({
                 <RefreshCw size={12} /> Run Healthcheck Now
               </button>
             </>
+          )}
+          {isAdmin && (
+            <button onClick={() => setShowRegressionSettings(true)}
+              className="text-xs px-2.5 py-1.5 rounded-md border border-red-300 text-red-700 hover:bg-red-50 inline-flex items-center gap-1"
+              title="Atur threshold regression">
+              <AlertTriangle size={12} /> Regression Settings
+            </button>
           )}
           <button
             onClick={() => setShowReport(true)}
@@ -1389,6 +1415,13 @@ export default function DashboardTab({
           const r = onSyncToProduction?.();
           if (r) alert(`Sync selesai. ${r.copied} submodule disalin ke Production.`);
         }}
+      />
+
+      <RegressionSettingsDialog
+        open={showRegressionSettings}
+        onClose={() => setShowRegressionSettings(false)}
+        categories={categories}
+        onSaved={() => window.dispatchEvent(new CustomEvent("hms-qa-regression-settings-change"))}
       />
     </div>
   );
