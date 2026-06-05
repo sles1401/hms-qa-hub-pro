@@ -819,6 +819,13 @@ export default function DashboardTab({
               </button>
             </>
           )}
+          {isAdmin && (
+            <button onClick={() => setShowRegressionSettings(true)}
+              className="text-xs px-2.5 py-1.5 rounded-md border border-red-300 text-red-700 hover:bg-red-50 inline-flex items-center gap-1"
+              title="Atur threshold regression">
+              <AlertTriangle size={12} /> Regression Settings
+            </button>
+          )}
           <button
             onClick={() => setShowReport(true)}
             disabled={!isAdmin}
