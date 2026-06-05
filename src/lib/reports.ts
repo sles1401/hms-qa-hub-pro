@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import type { AppStats, SubmoduleStats, Category } from "@/lib/store";
+import { getReportSettings } from "@/lib/adminSettings";
 
 export type ReportFormat = "csv" | "xlsx" | "pdf";
 export type ReportTemplate = "ringkas" | "enterprise";
