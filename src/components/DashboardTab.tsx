@@ -10,6 +10,8 @@ import { useHealthLog } from "@/hooks/useHealthLog";
 import { useRole } from "@/hooks/useRole";
 import ReportDialog from "@/components/ReportDialog";
 import SyncDiffDialog from "@/components/SyncDiffDialog";
+import RegressionSettingsDialog from "@/components/RegressionSettingsDialog";
+import { getRegressionSettings } from "@/lib/adminSettings";
 
 // Field-level validators
 function validateTitle(v: string): string | null {
