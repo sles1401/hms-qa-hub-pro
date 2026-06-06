@@ -132,18 +132,25 @@ const PIE_COLORS = ["#10b981", "#ef4444", "#f59e0b", "#3b82f6", "#a855f7", "#06b
 
 const REGRESSION_SNAPSHOT_KEY = "hms-qa-regression-snapshot";
 
+interface AlertItem { id: string; name: string; before: number; after: number; total: number; regressionTC: number; subs: { id: string; name: string; passed: number; total: number; rate: number }[]; }
+
 function RegressionAlert({ categories, submoduleStats, env }: { categories: Category[]; submoduleStats: Record<string, SubmoduleStats>; env: string }) {
   const [settingsVersion, setSettingsVersion] = useState(0);
+  const [statusVersion, setStatusVersion] = useState(0);
   useEffect(() => {
     const h = () => setSettingsVersion((v) => v + 1);
+    const hs = () => setStatusVersion((v) => v + 1);
     window.addEventListener("storage", h);
     window.addEventListener("hms-qa-regression-settings-change", h);
+    window.addEventListener("hms-qa-alert-status-change", hs);
     return () => {
       window.removeEventListener("storage", h);
       window.removeEventListener("hms-qa-regression-settings-change", h);
+      window.removeEventListener("hms-qa-alert-status-change", hs);
     };
   }, []);
   const regSettings = useMemo(() => getRegressionSettings(), [settingsVersion]);
+  const statuses = useMemo(() => loadAlertStatuses(), [statusVersion]);
 
   const targets = useMemo(() => {
     if (regSettings.watchedCategoryIds.length > 0) {
@@ -153,33 +160,36 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
   }, [categories, regSettings]);
 
   const rates = useMemo(() => {
-    const out: Record<string, { name: string; rate: number; total: number; regressionTC: number }> = {};
+    const out: Record<string, AlertItem & { name: string; rate: number }> = {} as any;
     for (const cat of targets) {
       let passed = 0, total = 0, regTC = 0;
+      const subs: AlertItem["subs"] = [];
       for (const sub of cat.submodules) {
         const s = submoduleStats[sub.id];
         if (!s) continue;
         passed += s.passed; total += s.totalTC;
         regTC += s.classification?.regression ?? 0;
+        subs.push({ id: sub.id, name: sub.name, passed: s.passed, total: s.totalTC, rate: s.totalTC > 0 ? (s.passed / s.totalTC) * 100 : 0 });
       }
-      out[cat.id] = { name: cat.name, rate: total > 0 ? (passed / total) * 100 : 0, total, regressionTC: regTC };
+      (out as any)[cat.id] = { id: cat.id, name: cat.name, rate: total > 0 ? (passed / total) * 100 : 0, total, regressionTC: regTC, subs, before: 0, after: 0 };
     }
     return out;
   }, [targets, submoduleStats]);
 
-  const [alerts, setAlerts] = useState<{ id: string; name: string; before: number; after: number }[]>([]);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [detail, setDetail] = useState<AlertItem | null>(null);
   const lastNotifiedRef = useRef<string>("");
 
   useEffect(() => {
     let snap: Record<string, number> = {};
     try { snap = JSON.parse(localStorage.getItem(REGRESSION_SNAPSHOT_KEY) || "{}"); } catch {}
-    const out: { id: string; name: string; before: number; after: number }[] = [];
+    const out: AlertItem[] = [];
     const threshold = regSettings.thresholdPct;
     for (const [id, info] of Object.entries(rates)) {
       const key = `${env}:${id}`;
       const prev = snap[key];
       if (typeof prev === "number" && info.total > 0 && info.rate < prev - threshold) {
-        out.push({ id, name: info.name, before: prev, after: info.rate });
+        out.push({ id, name: info.name, before: prev, after: info.rate, total: info.total, regressionTC: info.regressionTC, subs: info.subs });
       }
     }
     setAlerts(out);
@@ -195,15 +205,30 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
     }
   }, [rates, env, regSettings.thresholdPct]);
 
-  const acknowledge = () => {
+  const ackAll = () => {
+    alerts.forEach((a) => setAlertStatus(`${env}:${a.id}`, { state: "ack", at: new Date().toISOString(), before: a.before, after: a.after, by: "current" }));
+  };
+  const resolveAll = () => {
     let snap: Record<string, number> = {};
     try { snap = JSON.parse(localStorage.getItem(REGRESSION_SNAPSHOT_KEY) || "{}"); } catch {}
-    for (const [id, info] of Object.entries(rates)) snap[`${env}:${id}`] = info.rate;
+    for (const a of alerts) {
+      snap[`${env}:${a.id}`] = a.after;
+      setAlertStatus(`${env}:${a.id}`, { state: "resolved", at: new Date().toISOString(), before: a.before, after: a.after, by: "current" });
+    }
     localStorage.setItem(REGRESSION_SNAPSHOT_KEY, JSON.stringify(snap));
     setAlerts([]);
   };
+  const ackOne = (a: AlertItem) => setAlertStatus(`${env}:${a.id}`, { state: "ack", at: new Date().toISOString(), before: a.before, after: a.after });
+  const resolveOne = (a: AlertItem) => {
+    let snap: Record<string, number> = {};
+    try { snap = JSON.parse(localStorage.getItem(REGRESSION_SNAPSHOT_KEY) || "{}"); } catch {}
+    snap[`${env}:${a.id}`] = a.after;
+    localStorage.setItem(REGRESSION_SNAPSHOT_KEY, JSON.stringify(snap));
+    setAlertStatus(`${env}:${a.id}`, { state: "resolved", at: new Date().toISOString(), before: a.before, after: a.after });
+    setAlerts((arr) => arr.filter((x) => x.id !== a.id));
+  };
+  const unack = (a: AlertItem) => clearAlertStatus(`${env}:${a.id}`);
 
-  // Auto-seed snapshot if empty
   useEffect(() => {
     const raw = localStorage.getItem(REGRESSION_SNAPSHOT_KEY);
     if (!raw && Object.keys(rates).length > 0) {
@@ -214,32 +239,132 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
   }, [rates, env]);
 
   if (alerts.length === 0) return null;
+
+  const severityOf = (delta: number) => delta <= -10 ? { label: "Critical", color: "bg-red-600" } : delta <= -5 ? { label: "High", color: "bg-orange-500" } : { label: "Warning", color: "bg-yellow-500" };
+
   return (
-    <div className="rounded-xl border-l-4 border-red-500 bg-red-50 dark:bg-red-950/30 p-4 flex items-start gap-3">
-      <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={20} />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-red-800 dark:text-red-300">
-          Auto Alert — Pass Rate menurun ({alerts.length} modul, threshold {regSettings.thresholdPct}%)
-        </p>
-        <ul className="text-xs text-red-700 dark:text-red-200 mt-1.5 space-y-1">
-          {alerts.map((a) => {
-            const delta = a.after - a.before;
-            const status = delta <= -10 ? "Critical" : delta <= -5 ? "High" : "Warning";
-            const statusColor = delta <= -10 ? "bg-red-600" : delta <= -5 ? "bg-orange-500" : "bg-yellow-500";
-            return (
-              <li key={a.id} className="flex items-center gap-2">
-                <span className={`text-[10px] text-white px-1.5 py-0.5 rounded ${statusColor}`}>{status}</span>
-                <span className="font-medium">{a.name}</span>
-                <span>{a.before.toFixed(1)}% → {a.after.toFixed(1)}% ({delta.toFixed(1)}%)</span>
-              </li>
-            );
-          })}
-        </ul>
+    <>
+      <div className="rounded-xl border-l-4 border-red-500 bg-red-50 dark:bg-red-950/30 p-4 flex items-start gap-3">
+        <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={20} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+            Auto Alert — Pass Rate menurun ({alerts.length} modul, threshold {regSettings.thresholdPct}%)
+          </p>
+          <ul className="text-xs text-red-700 dark:text-red-200 mt-1.5 space-y-1">
+            {alerts.map((a) => {
+              const delta = a.after - a.before;
+              const sev = severityOf(delta);
+              const key = `${env}:${a.id}`;
+              const st = statuses[key];
+              const fpMatch = st && fingerprint(st.before, st.after) === fingerprint(a.before, a.after);
+              return (
+                <li key={a.id} className="flex items-center gap-2 flex-wrap">
+                  <button onClick={() => setDetail(a)} title="Lihat detail penurunan"
+                    className={`text-[10px] text-white px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${sev.color} hover:opacity-90`}>
+                    <Eye size={9}/> {sev.label}
+                  </button>
+                  <span className="font-medium">{a.name}</span>
+                  <span>{a.before.toFixed(1)}% → {a.after.toFixed(1)}% ({delta.toFixed(1)}%)</span>
+                  {fpMatch && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-200 text-amber-900 uppercase">
+                      {st.state}
+                    </span>
+                  )}
+                  <span className="ml-auto inline-flex gap-1">
+                    {fpMatch ? (
+                      <button onClick={() => unack(a)} className="text-[10px] px-1.5 py-0.5 rounded border border-red-300 hover:bg-red-100">Undo</button>
+                    ) : (
+                      <button onClick={() => ackOne(a)} className="text-[10px] px-1.5 py-0.5 rounded border border-red-300 hover:bg-red-100">Ack</button>
+                    )}
+                    <button onClick={() => resolveOne(a)} className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-100">Resolve</button>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+        <div className="flex flex-col gap-1 shrink-0">
+          <button onClick={ackAll} className="text-xs px-3 py-1.5 rounded border border-red-300 text-red-700 hover:bg-red-100">
+            Ack All
+          </button>
+          <button onClick={resolveAll} className="text-xs px-3 py-1.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-100">
+            Resolve All
+          </button>
+        </div>
       </div>
-      <button onClick={acknowledge} className="text-xs px-3 py-1.5 rounded border border-red-300 text-red-700 hover:bg-red-100">
-        Acknowledge
-      </button>
-    </div>
+
+      {detail && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-stretch justify-end" onClick={() => setDetail(null)}>
+          <div className="bg-card w-full max-w-md h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-border flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Detail Penurunan Pass Rate</p>
+                <h3 className="font-bold text-foreground text-lg truncate">{detail.name}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Environment: <span className="font-medium">{env}</span></p>
+              </div>
+              <button onClick={() => setDetail(null)} className="p-1.5 rounded hover:bg-muted"><X size={16}/></button>
+            </div>
+            <div className="p-5 space-y-4">
+              {(() => {
+                const delta = detail.after - detail.before;
+                const sev = severityOf(delta);
+                return (
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="p-3 rounded-lg bg-muted">
+                      <p className="text-[10px] text-muted-foreground uppercase">Baseline</p>
+                      <p className="text-xl font-bold text-foreground">{detail.before.toFixed(1)}%</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-muted">
+                      <p className="text-[10px] text-muted-foreground uppercase">Current</p>
+                      <p className="text-xl font-bold text-foreground">{detail.after.toFixed(1)}%</p>
+                    </div>
+                    <div className={`p-3 rounded-lg text-white ${sev.color}`}>
+                      <p className="text-[10px] uppercase opacity-90">Delta · {sev.label}</p>
+                      <p className="text-xl font-bold">{delta.toFixed(1)}%</p>
+                    </div>
+                  </div>
+                );
+              })()}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded border border-border">
+                  <p className="text-muted-foreground">Total TC</p>
+                  <p className="font-semibold text-foreground">{detail.total}</p>
+                </div>
+                <div className="p-2 rounded border border-border">
+                  <p className="text-muted-foreground">Regression TC</p>
+                  <p className="font-semibold text-foreground">{detail.regressionTC}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-foreground mb-2">Submodule pemicu</p>
+                <ul className="space-y-1.5">
+                  {detail.subs.length === 0 && <li className="text-xs text-muted-foreground">Tidak ada data submodule.</li>}
+                  {detail.subs.sort((a, b) => a.rate - b.rate).map((s) => (
+                    <li key={s.id} className="text-xs p-2 rounded border border-border flex items-center justify-between gap-2">
+                      <span className="truncate flex-1 text-foreground">{s.name}</span>
+                      <span className="text-muted-foreground">{s.passed}/{s.total}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] ${s.rate < 50 ? "bg-red-100 text-red-700" : s.rate < 80 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                        {s.rate.toFixed(1)}%
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="pt-3 border-t border-border flex gap-2">
+                <button onClick={() => { ackOne(detail); setDetail(null); }}
+                  className="flex-1 text-xs px-3 py-2 rounded border border-red-300 text-red-700 hover:bg-red-50">
+                  Acknowledge
+                </button>
+                <button onClick={() => { resolveOne(detail); setDetail(null); }}
+                  className="flex-1 text-xs px-3 py-2 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                  Resolve
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
