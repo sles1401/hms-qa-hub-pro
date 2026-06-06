@@ -216,13 +216,22 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
     <div className="rounded-xl border-l-4 border-red-500 bg-red-50 dark:bg-red-950/30 p-4 flex items-start gap-3">
       <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={20} />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-red-800 dark:text-red-300">Regression Alert — Pass Rate menurun</p>
-        <ul className="text-xs text-red-700 dark:text-red-200 mt-1 space-y-0.5">
-          {alerts.map((a) => (
-            <li key={a.id}>
-              <span className="font-medium">{a.name}</span>: {a.before.toFixed(1)}% → {a.after.toFixed(1)}% ({(a.after - a.before).toFixed(1)}%)
-            </li>
-          ))}
+        <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+          Auto Alert — Pass Rate menurun ({alerts.length} modul, threshold {regSettings.thresholdPct}%)
+        </p>
+        <ul className="text-xs text-red-700 dark:text-red-200 mt-1.5 space-y-1">
+          {alerts.map((a) => {
+            const delta = a.after - a.before;
+            const status = delta <= -10 ? "Critical" : delta <= -5 ? "High" : "Warning";
+            const statusColor = delta <= -10 ? "bg-red-600" : delta <= -5 ? "bg-orange-500" : "bg-yellow-500";
+            return (
+              <li key={a.id} className="flex items-center gap-2">
+                <span className={`text-[10px] text-white px-1.5 py-0.5 rounded ${statusColor}`}>{status}</span>
+                <span className="font-medium">{a.name}</span>
+                <span>{a.before.toFixed(1)}% → {a.after.toFixed(1)}% ({delta.toFixed(1)}%)</span>
+              </li>
+            );
+          })}
         </ul>
       </div>
       <button onClick={acknowledge} className="text-xs px-3 py-1.5 rounded border border-red-300 text-red-700 hover:bg-red-100">
