@@ -166,6 +166,7 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
   }, [targets, submoduleStats]);
 
   const [alerts, setAlerts] = useState<{ id: string; name: string; before: number; after: number }[]>([]);
+  const lastNotifiedRef = useRef<string>("");
 
   useEffect(() => {
     let snap: Record<string, number> = {};
@@ -180,6 +181,16 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
       }
     }
     setAlerts(out);
+    const sig = out.map((o) => `${o.id}:${o.after.toFixed(1)}`).join("|");
+    if (out.length > 0 && sig !== lastNotifiedRef.current) {
+      lastNotifiedRef.current = sig;
+      toast.error(`Regression Alert: ${out.length} modul turun > ${threshold}%`, {
+        description: out.map((o) => `${o.name}: ${o.before.toFixed(1)}% → ${o.after.toFixed(1)}%`).join(" · "),
+        duration: 8000,
+      });
+    } else if (out.length === 0) {
+      lastNotifiedRef.current = "";
+    }
   }, [rates, env, regSettings.thresholdPct]);
 
   const acknowledge = () => {
