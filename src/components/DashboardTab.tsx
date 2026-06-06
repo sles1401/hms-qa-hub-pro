@@ -612,26 +612,24 @@ export default function DashboardTab({
     setUrlError(null);
   };
 
-  // Export history (uses currently filtered view)
+  // Export history (uses currently filtered view + selected format)
   const exportHistoryJSON = () => {
-    const data = filteredHistory;
-    if (data.length === 0) return;
+    if (filteredHistory.length === 0) return;
+    const data = filteredHistory.map(historyToShape);
     downloadFile(
-      `dashboard-history-${new Date().toISOString().slice(0, 10)}.json`,
+      `dashboard-history-${historyExportFormat}-${new Date().toISOString().slice(0, 10)}.json`,
       JSON.stringify(data, null, 2),
       "application/json"
     );
   };
   const exportHistoryCSV = () => {
-    const data = filteredHistory;
-    if (data.length === 0) return;
-    const header = "id,field,oldValue,newValue,at,source";
-    const rows = data.map((h) =>
-      [h.id, h.field, h.oldValue, h.newValue, h.at, h.source ?? ""].map(csvEscape).join(",")
-    );
+    if (filteredHistory.length === 0) return;
+    const data = filteredHistory.map(historyToShape);
+    const headers = Object.keys(data[0]);
+    const rows = data.map((row) => headers.map((h) => csvEscape(String((row as any)[h] ?? ""))).join(","));
     downloadFile(
-      `dashboard-history-${new Date().toISOString().slice(0, 10)}.csv`,
-      [header, ...rows].join("\n"),
+      `dashboard-history-${historyExportFormat}-${new Date().toISOString().slice(0, 10)}.csv`,
+      [headers.join(","), ...rows].join("\n"),
       "text/csv"
     );
   };
