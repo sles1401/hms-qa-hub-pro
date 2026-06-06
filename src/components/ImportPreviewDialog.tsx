@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { X, CheckCircle2, AlertCircle, Upload } from "lucide-react";
+import { useMemo, useState } from "react";
+import { X, CheckCircle2, AlertCircle, Upload, FileJson, FileSpreadsheet } from "lucide-react";
 
 export interface PreviewRow<T> {
   index: number;
@@ -16,13 +16,26 @@ interface Props<T> {
   mode: "merge" | "overwrite";
   onConfirm: (validRows: T[]) => void;
   columns: { key: keyof T & string; label: string }[];
+  /** Optional sample template payload — when provided, sample download buttons are rendered. */
+  sample?: {
+    jsonContent: string;
+    csvContent: string;
+    baseName: string;
+  };
+}
+
+function dlBlob(name: string, content: string, mime: string) {
+  const u = URL.createObjectURL(new Blob([content], { type: mime }));
+  const a = document.createElement("a"); a.href = u; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(u), 500);
 }
 
 export default function ImportPreviewDialog<T extends Record<string, any>>({
-  open, onClose, fileName, rows, mode, onConfirm, columns,
+  open, onClose, fileName, rows, mode, onConfirm, columns, sample,
 }: Props<T>) {
   const validCount = useMemo(() => rows.filter((r) => r.errors.length === 0).length, [rows]);
   const errorCount = rows.length - validCount;
+  const [showAllErrors, setShowAllErrors] = useState(false);
   if (!open) return null;
 
   const confirm = () => {
@@ -32,9 +45,12 @@ export default function ImportPreviewDialog<T extends Record<string, any>>({
     onClose();
   };
 
+  const errorRows = rows.filter((r) => r.errors.length > 0);
+  const errorsShown = showAllErrors ? errorRows : errorRows.slice(0, 10);
+
   return (
     <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-card rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-card rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[88vh]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b border-border">
           <div>
             <h3 className="font-bold text-foreground">Preview Import — {fileName}</h3>
@@ -45,7 +61,27 @@ export default function ImportPreviewDialog<T extends Record<string, any>>({
               total {rows.length} baris
             </p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded hover:bg-muted"><X size={16} /></button>
+          <div className="flex items-center gap-2">
+            {sample && (
+              <>
+                <button
+                  onClick={() => dlBlob(`${sample.baseName}-sample.json`, sample.jsonContent, "application/json")}
+                  className="text-xs px-2 py-1.5 rounded border border-border hover:bg-muted inline-flex items-center gap-1"
+                  title="Unduh contoh format JSON valid"
+                >
+                  <FileJson size={12} /> Sample JSON
+                </button>
+                <button
+                  onClick={() => dlBlob(`${sample.baseName}-sample.csv`, sample.csvContent, "text/csv")}
+                  className="text-xs px-2 py-1.5 rounded border border-border hover:bg-muted inline-flex items-center gap-1"
+                  title="Unduh contoh format CSV valid"
+                >
+                  <FileSpreadsheet size={12} /> Sample CSV
+                </button>
+              </>
+            )}
+            <button onClick={onClose} className="p-1.5 rounded hover:bg-muted"><X size={16} /></button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-auto">
@@ -90,11 +126,24 @@ export default function ImportPreviewDialog<T extends Record<string, any>>({
         </div>
 
         {errorCount > 0 && (
-          <div className="px-5 py-2 bg-red-50 dark:bg-red-950/20 border-t border-red-200 text-xs text-red-700 dark:text-red-300 max-h-24 overflow-auto">
-            {rows.filter((r) => r.errors.length > 0).slice(0, 5).map((r) => (
-              <div key={r.index}>Baris {r.index + 1}: {r.errors.join("; ")}</div>
-            ))}
-            {errorCount > 5 && <div className="italic mt-1">… dan {errorCount - 5} error lainnya</div>}
+          <div className="px-5 py-3 bg-red-50 dark:bg-red-950/20 border-t border-red-200 text-xs text-red-700 dark:text-red-300 max-h-44 overflow-auto">
+            <div className="flex items-center justify-between mb-1">
+              <p className="font-semibold inline-flex items-center gap-1">
+                <AlertCircle size={12}/> Ringkasan {errorCount} error validasi
+              </p>
+              {errorRows.length > 10 && (
+                <button onClick={() => setShowAllErrors((v) => !v)} className="underline text-[11px]">
+                  {showAllErrors ? "Sembunyikan" : `Lihat semua (${errorRows.length})`}
+                </button>
+              )}
+            </div>
+            <ul className="space-y-0.5">
+              {errorsShown.map((r) => (
+                <li key={r.index}>
+                  <span className="font-mono">Baris {r.index + 1}:</span> {r.errors.join("; ")}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
