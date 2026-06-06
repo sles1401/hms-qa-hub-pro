@@ -519,11 +519,6 @@ export default function DashboardTab({
     setConfirm({ kind: "learnMoreUrl", value: urlDraft });
   };
 
-  // Multi-level Undo — pop most recent and restore old value
-  const handleUndo = () => {
-    if (history.length === 0) return;
-    const last = history[0];
-    const current = { insightText, insightTitle, learnMoreLabel, learnMoreUrl }[last.field];
   const [historyExportFormat, setHistoryExportFormat] = useState<"raw" | "human">(
     () => (localStorage.getItem("hms-qa-history-export-format") as any) === "raw" ? "raw" : "human"
   );
