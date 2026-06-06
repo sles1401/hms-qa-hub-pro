@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, Calendar, Sparkles, Check, Undo2, History, RotateCcw, AlertCircle, FileJson, FileSpreadsheet, ShieldCheck, ShieldAlert, Ban, Upload, RefreshCw, Zap, Hand, AlertTriangle, Lock } from "lucide-react";
+import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, Calendar, Sparkles, Check, Undo2, History, RotateCcw, AlertCircle, FileJson, FileSpreadsheet, ShieldCheck, ShieldAlert, Ban, Upload, RefreshCw, Zap, Hand, AlertTriangle, Lock, Bookmark, X, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { type AppStats, type SubmoduleStats, type JournalEntry, type Category, DASHBOARD_DEFAULTS, isValidGoogleDriveUrl, validateDeadlineStrict, type DashboardHistoryEntry, type HistorySource } from "@/lib/store";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
@@ -13,6 +13,8 @@ import ReportDialog from "@/components/ReportDialog";
 import SyncDiffDialog from "@/components/SyncDiffDialog";
 import RegressionSettingsDialog from "@/components/RegressionSettingsDialog";
 import { getRegressionSettings } from "@/lib/adminSettings";
+import { loadAlertStatuses, setAlertStatus, clearAlertStatus, fingerprint, type AlertStatusEntry } from "@/lib/alertStatus";
+import { loadPresets, addPreset, deletePreset, type FilterPreset } from "@/lib/savedFilters";
 
 // Field-level validators
 function validateTitle(v: string): string | null {
