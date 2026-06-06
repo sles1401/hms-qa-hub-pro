@@ -524,6 +524,56 @@ export default function DashboardTab({
     if (history.length === 0) return;
     const last = history[0];
     const current = { insightText, insightTitle, learnMoreLabel, learnMoreUrl }[last.field];
+  const [historyExportFormat, setHistoryExportFormat] = useState<"raw" | "human">(
+    () => (localStorage.getItem("hms-qa-history-export-format") as any) === "raw" ? "raw" : "human"
+  );
+  useEffect(() => { localStorage.setItem("hms-qa-history-export-format", historyExportFormat); }, [historyExportFormat]);
+
+  // Saved filter presets for history
+  const HISTORY_PRESET_SCOPE = "dashboard-history";
+  const [historyPresets, setHistoryPresets] = useState<FilterPreset[]>(() => loadPresets(HISTORY_PRESET_SCOPE));
+  useEffect(() => {
+    const h = () => setHistoryPresets(loadPresets(HISTORY_PRESET_SCOPE));
+    window.addEventListener(`hms-qa-filter-presets-change:${HISTORY_PRESET_SCOPE}`, h);
+    return () => window.removeEventListener(`hms-qa-filter-presets-change:${HISTORY_PRESET_SCOPE}`, h);
+  }, []);
+  const saveCurrentHistoryFilter = () => {
+    const name = window.prompt("Nama preset filter:", `Preset ${historyPresets.length + 1}`);
+    if (!name) return;
+    addPreset(HISTORY_PRESET_SCOPE, name, {
+      field: filterField, source: filterSource, from: filterFrom, to: filterTo,
+      query: filterQuery, sort: sortOrder, pageSize,
+    });
+  };
+  const applyHistoryPreset = (id: string) => {
+    const p = historyPresets.find((x) => x.id === id);
+    if (!p) return;
+    const v = p.values as any;
+    setFilterField(v.field ?? "all"); setFilterSource(v.source ?? "all");
+    setFilterFrom(v.from ?? ""); setFilterTo(v.to ?? "");
+    setFilterQuery(v.query ?? ""); setSortOrder(v.sort ?? "newest");
+    setPageSize(v.pageSize ?? 10);
+  };
+
+  const historyToShape = (h: DashboardHistoryEntry) => {
+    if (historyExportFormat === "raw") return h;
+    return {
+      id: h.id,
+      field_label: FIELD_LABELS[h.field],
+      field_key: h.field,
+      old_value: h.oldValue,
+      new_value: h.newValue,
+      changed_at: new Date(h.at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "medium" }),
+      changed_at_iso: h.at,
+      source: h.source ?? "manual",
+    };
+  };
+
+  // Multi-level Undo — pop most recent and restore old value
+  const handleUndo = () => {
+    if (history.length === 0) return;
+    const last = history[0];
+    const current = { insightText, insightTitle, learnMoreLabel, learnMoreUrl }[last.field];
     if (last.field === "insightText") onUpdateInsight(last.oldValue);
     if (last.field === "insightTitle") onUpdateInsightTitle(last.oldValue);
     if (last.field === "learnMoreLabel") onUpdateLearnMoreLabel(last.oldValue);
