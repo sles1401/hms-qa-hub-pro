@@ -1357,6 +1357,38 @@ export default function DashboardTab({
                   {[5, 10, 20, 50].map((n) => <option key={n} value={n}>{n} / halaman</option>)}
                 </select>
               </div>
+              <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border/50">
+                <span className="text-[10px] text-muted-foreground inline-flex items-center gap-1"><Bookmark size={10}/>Preset:</span>
+                <select onChange={(e) => { if (e.target.value) { applyHistoryPreset(e.target.value); e.target.value = ""; } }}
+                  className="text-[11px] px-1.5 py-0.5 rounded border border-input bg-background">
+                  <option value="">— Pilih preset —</option>
+                  {historyPresets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <button onClick={saveCurrentHistoryFilter}
+                  className="text-[11px] px-2 py-0.5 rounded border border-primary text-primary hover:bg-primary/10 inline-flex items-center gap-1">
+                  <Bookmark size={10}/> Save Filter
+                </button>
+                {historyPresets.length > 0 && (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {historyPresets.map((p) => (
+                      <span key={p.id} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                        {p.name}
+                        <button onClick={() => deletePreset(HISTORY_PRESET_SCOPE, p.id)} className="hover:text-red-600" title="Hapus preset">
+                          <X size={9}/>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-[10px] text-muted-foreground">Format ekspor:</span>
+                <select value={historyExportFormat} onChange={(e) => setHistoryExportFormat(e.target.value as any)}
+                  className="text-[11px] px-1.5 py-0.5 rounded border border-input bg-background">
+                  <option value="human">Human-readable</option>
+                  <option value="raw">Raw</option>
+                </select>
+              </div>
               <p className="text-[10px] text-muted-foreground">
                 Menampilkan {pagedHistory.length} dari {filteredHistory.length} (total {history.length}) · Halaman {safePage}/{totalPages}
               </p>
