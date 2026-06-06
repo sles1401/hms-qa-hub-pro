@@ -1,13 +1,18 @@
-import { useState, useMemo, useRef } from "react";
-import { History, Trash2, Download, Search, Upload, AlertCircle } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { History, Trash2, Download, Search, Upload, AlertCircle, Bookmark, X } from "lucide-react";
 import { type AuditLogEntry } from "@/lib/store";
 import ImportPreviewDialog, { type PreviewRow } from "@/components/ImportPreviewDialog";
+import { loadPresets, addPreset, deletePreset, type FilterPreset } from "@/lib/savedFilters";
 
 interface Props {
   log: AuditLogEntry[];
   onClear: () => void;
   onImport?: (entries: AuditLogEntry[], mode: "merge" | "overwrite") => void;
 }
+
+type AuditFilters = { user: string; target: string; from: string; to: string; q: string };
+const FILTER_KEY = "hms-qa-audit-filters";
+const PRESET_SCOPE = "audit";
 
 function csvEsc(v: any) { return `"${String(v ?? "").replace(/"/g, '""').replace(/\r?\n/g, " ")}"`; }
 function dl(name: string, content: string, mime: string) {
@@ -58,18 +63,56 @@ function parseCsvLine(ln: string): string[] {
   return cells;
 }
 
+const SAMPLE_JSON = JSON.stringify([
+  { id: "a-sample-1", who: "Suryani", action: "updated", target: "Master Data > Customer", at: new Date().toISOString() },
+  { id: "a-sample-2", who: "QA Bot", action: "imported", target: "Audit log", at: new Date().toISOString() },
+], null, 2);
+const SAMPLE_CSV = "id,who,action,target,at\n" +
+  `"a-sample-1","Suryani","updated","Master Data > Customer","${new Date().toISOString()}"\n` +
+  `"a-sample-2","QA Bot","imported","Audit log","${new Date().toISOString()}"`;
+
 export default function AuditTrailTab({ log, onClear, onImport }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importErr, setImportErr] = useState<string | null>(null);
   const [importMode, setImportMode] = useState<"merge" | "overwrite">("merge");
+  const [exportFormat, setExportFormat] = useState<"raw" | "human">("human");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewRows, setPreviewRows] = useState<PreviewRow<AuditLogEntry>[]>([]);
   const [previewName, setPreviewName] = useState("");
-  const [user, setUser] = useState("");
-  const [target, setTarget] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [q, setQ] = useState("");
+
+  // persisted filters
+  const persisted: Partial<AuditFilters> = (() => {
+    try { return JSON.parse(localStorage.getItem(FILTER_KEY) || "{}"); } catch { return {}; }
+  })();
+  const [user, setUser] = useState(persisted.user ?? "");
+  const [target, setTarget] = useState(persisted.target ?? "");
+  const [from, setFrom] = useState(persisted.from ?? "");
+  const [to, setTo] = useState(persisted.to ?? "");
+  const [q, setQ] = useState(persisted.q ?? "");
+
+  useEffect(() => {
+    localStorage.setItem(FILTER_KEY, JSON.stringify({ user, target, from, to, q }));
+  }, [user, target, from, to, q]);
+
+  // saved presets
+  const [presets, setPresets] = useState<FilterPreset<AuditFilters>[]>(() => loadPresets(PRESET_SCOPE));
+  useEffect(() => {
+    const h = () => setPresets(loadPresets(PRESET_SCOPE));
+    window.addEventListener(`hms-qa-filter-presets-change:${PRESET_SCOPE}`, h);
+    return () => window.removeEventListener(`hms-qa-filter-presets-change:${PRESET_SCOPE}`, h);
+  }, []);
+  const handleSavePreset = () => {
+    const name = window.prompt("Nama preset filter:", `Preset ${presets.length + 1}`);
+    if (!name) return;
+    addPreset<AuditFilters>(PRESET_SCOPE, name, { user, target, from, to, q });
+  };
+  const applyPreset = (id: string) => {
+    const p = presets.find((x) => x.id === id);
+    if (!p) return;
+    setUser(p.values.user || ""); setTarget(p.values.target || "");
+    setFrom(p.values.from || ""); setTo(p.values.to || "");
+    setQ(p.values.q || "");
+  };
 
   const users = useMemo(() => Array.from(new Set(log.map((l) => l.who))).sort(), [log]);
 
@@ -88,10 +131,32 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
     });
   }, [log, user, target, from, to, q]);
 
-  const exportJson = () => dl(`audit-filtered-${Date.now()}.json`, JSON.stringify(filtered, null, 2), "application/json");
+  const toExportShape = (l: AuditLogEntry) => {
+    if (exportFormat === "raw") {
+      return { id: l.id, who: l.who, action: l.action, target: l.target, at: l.at };
+    }
+    return {
+      id: l.id,
+      user: l.who,
+      activity: l.action,
+      module: l.target,
+      timestamp: new Date(l.at).toLocaleString("id-ID", {
+        dateStyle: "medium", timeStyle: "medium",
+      }),
+      timestamp_iso: l.at,
+    };
+  };
+
+  const exportJson = () => {
+    const data = filtered.map(toExportShape);
+    dl(`audit-${exportFormat}-${Date.now()}.json`, JSON.stringify(data, null, 2), "application/json");
+  };
   const exportCsv = () => {
-    const lines = ["id,who,action,target,at", ...filtered.map((l) => [l.id, l.who, l.action, l.target, l.at].map(csvEsc).join(","))];
-    dl(`audit-filtered-${Date.now()}.csv`, lines.join("\n"), "text/csv");
+    const data = filtered.map(toExportShape);
+    if (data.length === 0) return;
+    const headers = Object.keys(data[0]);
+    const lines = [headers.join(","), ...data.map((row) => headers.map((h) => csvEsc((row as any)[h])).join(","))];
+    dl(`audit-${exportFormat}-${Date.now()}.csv`, lines.join("\n"), "text/csv");
   };
 
   const handleImport = (file: File) => {
@@ -109,11 +174,22 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
           const lines = txt.split(/\r?\n/).filter((l) => l.trim().length > 0);
           if (lines.length === 0) throw new Error("CSV kosong");
           const header = lines[0].toLowerCase();
-          const hasHeader = /id|who|action|target|at/.test(header);
+          const hasHeader = /id|who|action|target|at|user|module|activity|timestamp/.test(header);
+          const headerCells = hasHeader ? parseCsvLine(lines[0]).map((c) => c.trim().toLowerCase()) : ["id","who","action","target","at"];
           const data = hasHeader ? lines.slice(1) : lines;
+          // map human-readable column names back to raw
+          const colMap: Record<string, string> = {
+            user: "who", who: "who",
+            activity: "action", action: "action",
+            module: "target", target: "target",
+            timestamp: "at", timestamp_iso: "at", at: "at",
+            id: "id",
+          };
           data.forEach((ln) => {
             const cells = parseCsvLine(ln);
-            rawRows.push({ id: cells[0], who: cells[1], action: cells[2], target: cells[3], at: cells[4] });
+            const obj: any = {};
+            headerCells.forEach((h, i) => { const k = colMap[h] ?? h; obj[k] = cells[i]; });
+            rawRows.push(obj);
           });
         }
         const rows: PreviewRow<AuditLogEntry>[] = rawRows.map((r, i) => {
@@ -145,6 +221,12 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
           <p className="text-sm text-muted-foreground">{filtered.length} dari {log.length} aktivitas.</p>
         </div>
         <div className="flex gap-2 flex-wrap items-center">
+          <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value as any)}
+            title="Skema kolom ekspor"
+            className="text-xs px-2 py-1.5 rounded border border-input bg-background">
+            <option value="human">Human-readable</option>
+            <option value="raw">Raw</option>
+          </select>
           {onImport && (
             <>
               <select value={importMode} onChange={(e) => setImportMode(e.target.value as any)}
@@ -161,14 +243,14 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
             </>
           )}
           <button onClick={exportJson} disabled={filtered.length === 0}
-            title={`Export ${filtered.length} entri (hasil filter)`}
+            title={`Export ${filtered.length} entri (${exportFormat})`}
             className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg border border-border hover:bg-muted text-muted-foreground disabled:opacity-50">
-            <Download size={12}/> Filtered JSON ({filtered.length})
+            <Download size={12}/> JSON ({filtered.length})
           </button>
           <button onClick={exportCsv} disabled={filtered.length === 0}
-            title={`Export ${filtered.length} entri (hasil filter)`}
+            title={`Export ${filtered.length} entri (${exportFormat})`}
             className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg border border-border hover:bg-muted text-muted-foreground disabled:opacity-50">
-            <Download size={12}/> Filtered CSV ({filtered.length})
+            <Download size={12}/> CSV ({filtered.length})
           </button>
           {log.length > 0 && (
             <button onClick={() => { if (confirm("Hapus seluruh log?")) onClear(); }}
@@ -182,19 +264,45 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
         <div className="text-xs text-red-600 inline-flex items-center gap-1"><AlertCircle size={12}/>{importErr}</div>
       )}
 
-      <div className="bg-card rounded-xl border border-border p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
-        <select value={user} onChange={(e) => setUser(e.target.value)} className="text-xs px-2 py-1.5 rounded border border-input bg-background">
-          <option value="">Semua User</option>
-          {users.map((u) => <option key={u} value={u}>{u}</option>)}
-        </select>
-        <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Modul / target..."
-          className="text-xs px-2 py-1.5 rounded border border-input bg-background" />
-        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="text-xs px-2 py-1.5 rounded border border-input bg-background" />
-        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="text-xs px-2 py-1.5 rounded border border-input bg-background" />
-        <div className="relative">
-          <Search size={12} className="absolute left-2 top-2.5 text-muted-foreground" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari..."
-            className="w-full pl-7 pr-2 py-1.5 text-xs rounded border border-input bg-background" />
+      <div className="bg-card rounded-xl border border-border p-3 space-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+          <select value={user} onChange={(e) => setUser(e.target.value)} className="text-xs px-2 py-1.5 rounded border border-input bg-background">
+            <option value="">Semua User</option>
+            {users.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+          <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Modul / target..."
+            className="text-xs px-2 py-1.5 rounded border border-input bg-background" />
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="text-xs px-2 py-1.5 rounded border border-input bg-background" />
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="text-xs px-2 py-1.5 rounded border border-input bg-background" />
+          <div className="relative">
+            <Search size={12} className="absolute left-2 top-2.5 text-muted-foreground" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari..."
+              className="w-full pl-7 pr-2 py-1.5 text-xs rounded border border-input bg-background" />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-border/50">
+          <span className="text-[11px] text-muted-foreground inline-flex items-center gap-1"><Bookmark size={11}/>Preset:</span>
+          <select onChange={(e) => { if (e.target.value) { applyPreset(e.target.value); e.target.value = ""; } }}
+            className="text-xs px-2 py-1 rounded border border-input bg-background">
+            <option value="">— Pilih preset —</option>
+            {presets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <button onClick={handleSavePreset}
+            className="text-xs px-2 py-1 rounded border border-primary text-primary hover:bg-primary/10 inline-flex items-center gap-1">
+            <Bookmark size={11}/> Save Filter
+          </button>
+          {presets.length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap">
+              {presets.map((p) => (
+                <span key={p.id} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                  {p.name}
+                  <button onClick={() => deletePreset(PRESET_SCOPE, p.id)} className="hover:text-red-600" title="Hapus preset">
+                    <X size={9}/>
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -232,6 +340,7 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
         rows={previewRows}
         mode={importMode}
         onConfirm={confirmImport}
+        sample={{ jsonContent: SAMPLE_JSON, csvContent: SAMPLE_CSV, baseName: "audit-trail" }}
         columns={[
           { key: "who", label: "User" },
           { key: "action", label: "Action" },
