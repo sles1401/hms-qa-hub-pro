@@ -13,7 +13,7 @@ import ReportDialog from "@/components/ReportDialog";
 import SyncDiffDialog from "@/components/SyncDiffDialog";
 import RegressionSettingsDialog from "@/components/RegressionSettingsDialog";
 import { getRegressionSettings } from "@/lib/adminSettings";
-import { loadAlertStatuses, setAlertStatus, clearAlertStatus, fingerprint, type AlertStatusEntry } from "@/lib/alertStatus";
+import { loadAlertStatuses, setAlertStatus, clearAlertStatus, fingerprint } from "@/lib/alertStatus";
 import { loadPresets, addPreset, deletePreset, type FilterPreset } from "@/lib/savedFilters";
 
 // Field-level validators
