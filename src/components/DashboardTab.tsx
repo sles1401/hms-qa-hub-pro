@@ -440,19 +440,21 @@ export default function DashboardTab({
     setUrlError(null);
   };
 
-  // Export history
+  // Export history (uses currently filtered view)
   const exportHistoryJSON = () => {
-    if (history.length === 0) return;
+    const data = filteredHistory;
+    if (data.length === 0) return;
     downloadFile(
       `dashboard-history-${new Date().toISOString().slice(0, 10)}.json`,
-      JSON.stringify(history, null, 2),
+      JSON.stringify(data, null, 2),
       "application/json"
     );
   };
   const exportHistoryCSV = () => {
-    if (history.length === 0) return;
+    const data = filteredHistory;
+    if (data.length === 0) return;
     const header = "id,field,oldValue,newValue,at,source";
-    const rows = history.map((h) =>
+    const rows = data.map((h) =>
       [h.id, h.field, h.oldValue, h.newValue, h.at, h.source ?? ""].map(csvEscape).join(",")
     );
     downloadFile(
