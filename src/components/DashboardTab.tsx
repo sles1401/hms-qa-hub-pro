@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, Calendar, Sparkles, Check, Undo2, History, RotateCcw, AlertCircle, FileJson, FileSpreadsheet, ShieldCheck, ShieldAlert, Ban, Upload, RefreshCw, Zap, Hand, AlertTriangle, Lock } from "lucide-react";
+import { toast } from "sonner";
 import { type AppStats, type SubmoduleStats, type JournalEntry, type Category, DASHBOARD_DEFAULTS, isValidGoogleDriveUrl, validateDeadlineStrict, type DashboardHistoryEntry, type HistorySource } from "@/lib/store";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
@@ -165,6 +166,7 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
   }, [targets, submoduleStats]);
 
   const [alerts, setAlerts] = useState<{ id: string; name: string; before: number; after: number }[]>([]);
+  const lastNotifiedRef = useRef<string>("");
 
   useEffect(() => {
     let snap: Record<string, number> = {};
@@ -179,6 +181,16 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
       }
     }
     setAlerts(out);
+    const sig = out.map((o) => `${o.id}:${o.after.toFixed(1)}`).join("|");
+    if (out.length > 0 && sig !== lastNotifiedRef.current) {
+      lastNotifiedRef.current = sig;
+      toast.error(`Regression Alert: ${out.length} modul turun > ${threshold}%`, {
+        description: out.map((o) => `${o.name}: ${o.before.toFixed(1)}% → ${o.after.toFixed(1)}%`).join(" · "),
+        duration: 8000,
+      });
+    } else if (out.length === 0) {
+      lastNotifiedRef.current = "";
+    }
   }, [rates, env, regSettings.thresholdPct]);
 
   const acknowledge = () => {
@@ -204,13 +216,22 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
     <div className="rounded-xl border-l-4 border-red-500 bg-red-50 dark:bg-red-950/30 p-4 flex items-start gap-3">
       <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={20} />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-red-800 dark:text-red-300">Regression Alert — Pass Rate menurun</p>
-        <ul className="text-xs text-red-700 dark:text-red-200 mt-1 space-y-0.5">
-          {alerts.map((a) => (
-            <li key={a.id}>
-              <span className="font-medium">{a.name}</span>: {a.before.toFixed(1)}% → {a.after.toFixed(1)}% ({(a.after - a.before).toFixed(1)}%)
-            </li>
-          ))}
+        <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+          Auto Alert — Pass Rate menurun ({alerts.length} modul, threshold {regSettings.thresholdPct}%)
+        </p>
+        <ul className="text-xs text-red-700 dark:text-red-200 mt-1.5 space-y-1">
+          {alerts.map((a) => {
+            const delta = a.after - a.before;
+            const status = delta <= -10 ? "Critical" : delta <= -5 ? "High" : "Warning";
+            const statusColor = delta <= -10 ? "bg-red-600" : delta <= -5 ? "bg-orange-500" : "bg-yellow-500";
+            return (
+              <li key={a.id} className="flex items-center gap-2">
+                <span className={`text-[10px] text-white px-1.5 py-0.5 rounded ${statusColor}`}>{status}</span>
+                <span className="font-medium">{a.name}</span>
+                <span>{a.before.toFixed(1)}% → {a.after.toFixed(1)}% ({delta.toFixed(1)}%)</span>
+              </li>
+            );
+          })}
         </ul>
       </div>
       <button onClick={acknowledge} className="text-xs px-3 py-1.5 rounded border border-red-300 text-red-700 hover:bg-red-100">
@@ -419,19 +440,21 @@ export default function DashboardTab({
     setUrlError(null);
   };
 
-  // Export history
+  // Export history (uses currently filtered view)
   const exportHistoryJSON = () => {
-    if (history.length === 0) return;
+    const data = filteredHistory;
+    if (data.length === 0) return;
     downloadFile(
       `dashboard-history-${new Date().toISOString().slice(0, 10)}.json`,
-      JSON.stringify(history, null, 2),
+      JSON.stringify(data, null, 2),
       "application/json"
     );
   };
   const exportHistoryCSV = () => {
-    if (history.length === 0) return;
+    const data = filteredHistory;
+    if (data.length === 0) return;
     const header = "id,field,oldValue,newValue,at,source";
-    const rows = history.map((h) =>
+    const rows = data.map((h) =>
       [h.id, h.field, h.oldValue, h.newValue, h.at, h.source ?? ""].map(csvEscape).join(",")
     );
     downloadFile(
@@ -1254,13 +1277,15 @@ export default function DashboardTab({
             </div>
             <div className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <button onClick={exportHistoryJSON} disabled={history.length === 0}
+                <button onClick={exportHistoryJSON} disabled={filteredHistory.length === 0}
+                  title={`Export ${filteredHistory.length} entri (hasil filter)`}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
-                  <FileJson size={12} /> Export History JSON
+                  <FileJson size={12} /> Export Filtered JSON ({filteredHistory.length})
                 </button>
-                <button onClick={exportHistoryCSV} disabled={history.length === 0}
+                <button onClick={exportHistoryCSV} disabled={filteredHistory.length === 0}
+                  title={`Export ${filteredHistory.length} entri (hasil filter)`}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
-                  <FileSpreadsheet size={12} /> Export History CSV
+                  <FileSpreadsheet size={12} /> Export Filtered CSV ({filteredHistory.length})
                 </button>
                 <button onClick={handleImportHistory}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">

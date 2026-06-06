@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { History, Trash2, Download, Search, Upload, AlertCircle } from "lucide-react";
 import { type AuditLogEntry } from "@/lib/store";
+import ImportPreviewDialog, { type PreviewRow } from "@/components/ImportPreviewDialog";
 
 interface Props {
   log: AuditLogEntry[];
@@ -15,10 +16,55 @@ function dl(name: string, content: string, mime: string) {
   setTimeout(() => URL.revokeObjectURL(u), 500);
 }
 
+function validateEntry(p: any): { entry: AuditLogEntry | null; errors: string[] } {
+  const errors: string[] = [];
+  if (!p || typeof p !== "object") return { entry: null, errors: ["Bukan object valid"] };
+  const who = String(p.who ?? "").trim();
+  const action = String(p.action ?? "").trim();
+  const target = String(p.target ?? "").trim();
+  const atRaw = String(p.at ?? "").trim();
+  if (!who) errors.push("kolom 'who' kosong");
+  if (!action) errors.push("kolom 'action' kosong");
+  if (!target) errors.push("kolom 'target' kosong");
+  let atIso = atRaw;
+  if (atRaw) {
+    const d = new Date(atRaw);
+    if (isNaN(d.getTime())) errors.push("kolom 'at' bukan tanggal valid");
+    else atIso = d.toISOString();
+  } else {
+    atIso = new Date().toISOString();
+  }
+  if (errors.length > 0) return { entry: null, errors };
+  return {
+    entry: {
+      id: String(p.id || `a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`),
+      who, action, target, at: atIso,
+    },
+    errors: [],
+  };
+}
+
+function parseCsvLine(ln: string): string[] {
+  const cells: string[] = [];
+  let cur = "", inQ = false;
+  for (let i = 0; i < ln.length; i++) {
+    const c = ln[i];
+    if (c === '"') {
+      if (inQ && ln[i + 1] === '"') { cur += '"'; i++; } else inQ = !inQ;
+    } else if (c === "," && !inQ) { cells.push(cur); cur = ""; }
+    else cur += c;
+  }
+  cells.push(cur);
+  return cells;
+}
+
 export default function AuditTrailTab({ log, onClear, onImport }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importErr, setImportErr] = useState<string | null>(null);
   const [importMode, setImportMode] = useState<"merge" | "overwrite">("merge");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewRows, setPreviewRows] = useState<PreviewRow<AuditLogEntry>[]>([]);
+  const [previewName, setPreviewName] = useState("");
   const [user, setUser] = useState("");
   const [target, setTarget] = useState("");
   const [from, setFrom] = useState("");
@@ -42,38 +88,10 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
     });
   }, [log, user, target, from, to, q]);
 
-  const exportJson = () => dl(`audit-${Date.now()}.json`, JSON.stringify(filtered, null, 2), "application/json");
+  const exportJson = () => dl(`audit-filtered-${Date.now()}.json`, JSON.stringify(filtered, null, 2), "application/json");
   const exportCsv = () => {
     const lines = ["id,who,action,target,at", ...filtered.map((l) => [l.id, l.who, l.action, l.target, l.at].map(csvEsc).join(","))];
-    dl(`audit-${Date.now()}.csv`, lines.join("\n"), "text/csv");
-  };
-
-  const parseCsv = (text: string): AuditLogEntry[] => {
-    const lines = text.split(/\r?\n/).filter(Boolean);
-    if (lines.length < 2) return [];
-    const header = lines[0].toLowerCase();
-    const hasHeader = /id|who|action|target|at/.test(header);
-    const data = hasHeader ? lines.slice(1) : lines;
-    return data.map((ln) => {
-      // simple CSV parse handling quoted fields
-      const cells: string[] = [];
-      let cur = "", inQ = false;
-      for (let i = 0; i < ln.length; i++) {
-        const c = ln[i];
-        if (c === '"') {
-          if (inQ && ln[i + 1] === '"') { cur += '"'; i++; } else inQ = !inQ;
-        } else if (c === "," && !inQ) { cells.push(cur); cur = ""; }
-        else cur += c;
-      }
-      cells.push(cur);
-      return {
-        id: cells[0] || `a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        who: cells[1] || "Unknown",
-        action: cells[2] || "",
-        target: cells[3] || "",
-        at: cells[4] || new Date().toISOString(),
-      };
-    }).filter((e) => e.action || e.target);
+    dl(`audit-filtered-${Date.now()}.csv`, lines.join("\n"), "text/csv");
   };
 
   const handleImport = (file: File) => {
@@ -82,23 +100,29 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
     reader.onload = () => {
       try {
         const txt = String(reader.result || "");
-        let entries: AuditLogEntry[] = [];
+        const rawRows: any[] = [];
         if (file.name.toLowerCase().endsWith(".json")) {
           const parsed = JSON.parse(txt);
           if (!Array.isArray(parsed)) throw new Error("JSON harus berupa array");
-          entries = parsed.map((p: any) => ({
-            id: String(p.id || `a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`),
-            who: String(p.who || "Unknown"),
-            action: String(p.action || ""),
-            target: String(p.target || ""),
-            at: String(p.at || new Date().toISOString()),
-          }));
+          parsed.forEach((p) => rawRows.push(p));
         } else {
-          entries = parseCsv(txt);
+          const lines = txt.split(/\r?\n/).filter((l) => l.trim().length > 0);
+          if (lines.length === 0) throw new Error("CSV kosong");
+          const header = lines[0].toLowerCase();
+          const hasHeader = /id|who|action|target|at/.test(header);
+          const data = hasHeader ? lines.slice(1) : lines;
+          data.forEach((ln) => {
+            const cells = parseCsvLine(ln);
+            rawRows.push({ id: cells[0], who: cells[1], action: cells[2], target: cells[3], at: cells[4] });
+          });
         }
-        if (entries.length === 0) { setImportErr("Tidak ada entri valid ditemukan"); return; }
-        if (importMode === "overwrite" && !confirm(`Overwrite seluruh log dengan ${entries.length} entri?`)) return;
-        onImport?.(entries, importMode);
+        const rows: PreviewRow<AuditLogEntry>[] = rawRows.map((r, i) => {
+          const { entry, errors } = validateEntry(r);
+          return { index: i, raw: JSON.stringify(r), parsed: entry, errors };
+        });
+        setPreviewName(file.name);
+        setPreviewRows(rows);
+        setPreviewOpen(true);
       } catch (e: any) {
         setImportErr(e?.message || "Gagal memparse file");
       }
@@ -106,6 +130,10 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
     reader.readAsText(file);
   };
 
+  const confirmImport = (entries: AuditLogEntry[]) => {
+    if (importMode === "overwrite" && !confirm(`Overwrite seluruh log dengan ${entries.length} entri?`)) return;
+    onImport?.(entries, importMode);
+  };
 
   return (
     <div className="space-y-4">
@@ -133,12 +161,14 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
             </>
           )}
           <button onClick={exportJson} disabled={filtered.length === 0}
+            title={`Export ${filtered.length} entri (hasil filter)`}
             className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg border border-border hover:bg-muted text-muted-foreground disabled:opacity-50">
-            <Download size={12}/> JSON
+            <Download size={12}/> Filtered JSON ({filtered.length})
           </button>
           <button onClick={exportCsv} disabled={filtered.length === 0}
+            title={`Export ${filtered.length} entri (hasil filter)`}
             className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg border border-border hover:bg-muted text-muted-foreground disabled:opacity-50">
-            <Download size={12}/> CSV
+            <Download size={12}/> Filtered CSV ({filtered.length})
           </button>
           {log.length > 0 && (
             <button onClick={() => { if (confirm("Hapus seluruh log?")) onClear(); }}
@@ -194,6 +224,21 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
           </ul>
         </div>
       )}
+
+      <ImportPreviewDialog<AuditLogEntry>
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        fileName={previewName}
+        rows={previewRows}
+        mode={importMode}
+        onConfirm={confirmImport}
+        columns={[
+          { key: "who", label: "User" },
+          { key: "action", label: "Action" },
+          { key: "target", label: "Target" },
+          { key: "at", label: "At" },
+        ]}
+      />
     </div>
   );
 }
