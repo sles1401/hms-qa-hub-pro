@@ -1277,13 +1277,15 @@ export default function DashboardTab({
             </div>
             <div className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <button onClick={exportHistoryJSON} disabled={history.length === 0}
+                <button onClick={exportHistoryJSON} disabled={filteredHistory.length === 0}
+                  title={`Export ${filteredHistory.length} entri (hasil filter)`}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
-                  <FileJson size={12} /> Export History JSON
+                  <FileJson size={12} /> Export Filtered JSON ({filteredHistory.length})
                 </button>
-                <button onClick={exportHistoryCSV} disabled={history.length === 0}
+                <button onClick={exportHistoryCSV} disabled={filteredHistory.length === 0}
+                  title={`Export ${filteredHistory.length} entri (hasil filter)`}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
-                  <FileSpreadsheet size={12} /> Export History CSV
+                  <FileSpreadsheet size={12} /> Export Filtered CSV ({filteredHistory.length})
                 </button>
                 <button onClick={handleImportHistory}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
