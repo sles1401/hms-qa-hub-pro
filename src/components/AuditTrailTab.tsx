@@ -3,6 +3,7 @@ import { History, Trash2, Download, Search, Upload, AlertCircle, Bookmark, X } f
 import { type AuditLogEntry } from "@/lib/store";
 import ImportPreviewDialog, { type PreviewRow } from "@/components/ImportPreviewDialog";
 import { loadPresets, addPreset, deletePreset, type FilterPreset } from "@/lib/savedFilters";
+import { buildExportFilename } from "@/lib/exportFilename";
 
 interface Props {
   log: AuditLogEntry[];
