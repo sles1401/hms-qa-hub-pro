@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, Calendar, Sparkles, Check, Undo2, History, RotateCcw, AlertCircle, FileJson, FileSpreadsheet, ShieldCheck, ShieldAlert, Ban, Upload, RefreshCw, Zap, Hand, AlertTriangle, Lock, Bookmark, X, Eye } from "lucide-react";
+import { TrendingUp, CheckCircle, XCircle, Clock, BarChart3, Edit2, Lightbulb, ExternalLink, Save, Calendar, Sparkles, Check, Undo2, History, RotateCcw, AlertCircle, FileJson, FileSpreadsheet, ShieldCheck, ShieldAlert, Ban, Upload, RefreshCw, Zap, Hand, AlertTriangle, Lock, Bookmark, X, Eye, Search } from "lucide-react";
 import { toast } from "sonner";
 import { type AppStats, type SubmoduleStats, type JournalEntry, type Category, DASHBOARD_DEFAULTS, isValidGoogleDriveUrl, validateDeadlineStrict, type DashboardHistoryEntry, type HistorySource } from "@/lib/store";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
@@ -15,6 +15,7 @@ import RegressionSettingsDialog from "@/components/RegressionSettingsDialog";
 import { getRegressionSettings } from "@/lib/adminSettings";
 import { loadAlertStatuses, setAlertStatus, clearAlertStatus, fingerprint } from "@/lib/alertStatus";
 import { loadPresets, addPreset, deletePreset, type FilterPreset } from "@/lib/savedFilters";
+import { buildExportFilename } from "@/lib/exportFilename";
 
 // Field-level validators
 function validateTitle(v: string): string | null {
@@ -133,6 +134,51 @@ const PIE_COLORS = ["#10b981", "#ef4444", "#f59e0b", "#3b82f6", "#a855f7", "#06b
 const REGRESSION_SNAPSHOT_KEY = "hms-qa-regression-snapshot";
 
 interface AlertItem { id: string; name: string; before: number; after: number; total: number; regressionTC: number; subs: { id: string; name: string; passed: number; total: number; rate: number }[]; }
+
+function RegressionSubsList({ subs }: { subs: AlertItem["subs"] }) {
+  const [q, setQ] = useState("");
+  const [sort, setSort] = useState<"rateAsc" | "rateDesc" | "name" | "failDesc">("rateAsc");
+  const display = useMemo(() => {
+    const filtered = subs.filter((s) => !q.trim() || s.name.toLowerCase().includes(q.toLowerCase()));
+    const arr = [...filtered];
+    if (sort === "rateAsc") arr.sort((a, b) => a.rate - b.rate);
+    else if (sort === "rateDesc") arr.sort((a, b) => b.rate - a.rate);
+    else if (sort === "name") arr.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sort === "failDesc") arr.sort((a, b) => (b.total - b.passed) - (a.total - a.passed));
+    return arr;
+  }, [subs, q, sort]);
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <p className="text-xs font-semibold text-foreground">Submodule pemicu ({display.length}/{subs.length})</p>
+        <select value={sort} onChange={(e) => setSort(e.target.value as any)}
+          className="text-[11px] px-1.5 py-1 rounded border border-input bg-background">
+          <option value="rateAsc">Rate ↑ (terendah dulu)</option>
+          <option value="rateDesc">Rate ↓ (tertinggi dulu)</option>
+          <option value="failDesc">Failed terbanyak</option>
+          <option value="name">Nama (A–Z)</option>
+        </select>
+      </div>
+      <div className="relative mb-2">
+        <Search size={11} className="absolute left-2 top-2 text-muted-foreground" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari submodule / trigger case..."
+          className="w-full pl-7 pr-2 py-1.5 text-xs rounded border border-input bg-background" />
+      </div>
+      <ul className="space-y-1.5">
+        {display.length === 0 && <li className="text-xs text-muted-foreground">Tidak ada submodule cocok.</li>}
+        {display.map((s) => (
+          <li key={s.id} className="text-xs p-2 rounded border border-border flex items-center justify-between gap-2">
+            <span className="truncate flex-1 text-foreground">{s.name}</span>
+            <span className="text-muted-foreground">{s.passed}/{s.total}</span>
+            <span className={`px-1.5 py-0.5 rounded text-[10px] ${s.rate < 50 ? "bg-red-100 text-red-700" : s.rate < 80 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+              {s.rate.toFixed(1)}%
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 function RegressionAlert({ categories, submoduleStats, env }: { categories: Category[]; submoduleStats: Record<string, SubmoduleStats>; env: string }) {
   const [settingsVersion, setSettingsVersion] = useState(0);
@@ -335,21 +381,8 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
                   <p className="font-semibold text-foreground">{detail.regressionTC}</p>
                 </div>
               </div>
-              <div>
-                <p className="text-xs font-semibold text-foreground mb-2">Submodule pemicu</p>
-                <ul className="space-y-1.5">
-                  {detail.subs.length === 0 && <li className="text-xs text-muted-foreground">Tidak ada data submodule.</li>}
-                  {detail.subs.sort((a, b) => a.rate - b.rate).map((s) => (
-                    <li key={s.id} className="text-xs p-2 rounded border border-border flex items-center justify-between gap-2">
-                      <span className="truncate flex-1 text-foreground">{s.name}</span>
-                      <span className="text-muted-foreground">{s.passed}/{s.total}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] ${s.rate < 50 ? "bg-red-100 text-red-700" : s.rate < 80 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
-                        {s.rate.toFixed(1)}%
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <RegressionSubsList subs={detail.subs} />
+
               <div className="pt-3 border-t border-border flex gap-2">
                 <button onClick={() => { ackOne(detail); setDetail(null); }}
                   className="flex-1 text-xs px-3 py-2 rounded border border-red-300 text-red-700 hover:bg-red-50">
@@ -613,26 +646,27 @@ export default function DashboardTab({
   };
 
   // Export history (uses currently filtered view + selected format)
+  const buildHistoryExportName = (ext: "json" | "csv") => buildExportFilename({
+    prefix: "dashboard-history",
+    format: historyExportFormat,
+    ext,
+    from: filterFrom,
+    to: filterTo,
+    scope: { field: filterField, source: filterSource, q: filterQuery },
+  });
   const exportHistoryJSON = () => {
     if (filteredHistory.length === 0) return;
     const data = filteredHistory.map(historyToShape);
-    downloadFile(
-      `dashboard-history-${historyExportFormat}-${new Date().toISOString().slice(0, 10)}.json`,
-      JSON.stringify(data, null, 2),
-      "application/json"
-    );
+    downloadFile(buildHistoryExportName("json"), JSON.stringify(data, null, 2), "application/json");
   };
   const exportHistoryCSV = () => {
     if (filteredHistory.length === 0) return;
     const data = filteredHistory.map(historyToShape);
     const headers = Object.keys(data[0]);
     const rows = data.map((row) => headers.map((h) => csvEscape(String((row as any)[h] ?? ""))).join(","));
-    downloadFile(
-      `dashboard-history-${historyExportFormat}-${new Date().toISOString().slice(0, 10)}.csv`,
-      [headers.join(","), ...rows].join("\n"),
-      "text/csv"
-    );
+    downloadFile(buildHistoryExportName("csv"), [headers.join(","), ...rows].join("\n"), "text/csv");
   };
+
 
   // Import history (JSON/CSV) with strict schema validation
   const VALID_FIELDS: FieldKey[] = ["insightText", "insightTitle", "learnMoreLabel", "learnMoreUrl"];

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { X, CheckCircle2, AlertCircle, Upload, FileJson, FileSpreadsheet } from "lucide-react";
+import { X, CheckCircle2, AlertCircle, Upload, FileJson, FileSpreadsheet, ClipboardCheck } from "lucide-react";
 
 export interface PreviewRow<T> {
   index: number;
@@ -22,6 +22,10 @@ interface Props<T> {
     csvContent: string;
     baseName: string;
   };
+  /** Optional revalidator — enables a paste-and-validate panel that re-runs schema checks against pasted text. */
+  revalidate?: (text: string, kind: "json" | "csv") => PreviewRow<T>[];
+  /** Optional replacer — when provided alongside revalidate, the user can replace preview rows with pasted content. */
+  onReplaceRows?: (rows: PreviewRow<T>[], fileName: string) => void;
 }
 
 function dlBlob(name: string, content: string, mime: string) {
@@ -31,11 +35,15 @@ function dlBlob(name: string, content: string, mime: string) {
 }
 
 export default function ImportPreviewDialog<T extends Record<string, any>>({
-  open, onClose, fileName, rows, mode, onConfirm, columns, sample,
+  open, onClose, fileName, rows, mode, onConfirm, columns, sample, revalidate, onReplaceRows,
 }: Props<T>) {
   const validCount = useMemo(() => rows.filter((r) => r.errors.length === 0).length, [rows]);
   const errorCount = rows.length - validCount;
   const [showAllErrors, setShowAllErrors] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [pasteKind, setPasteKind] = useState<"json" | "csv">("json");
+  const [pasteResult, setPasteResult] = useState<{ rows: PreviewRow<T>[]; valid: number; error: number } | null>(null);
   if (!open) return null;
 
   const confirm = () => {
@@ -43,6 +51,17 @@ export default function ImportPreviewDialog<T extends Record<string, any>>({
     if (valid.length === 0) return;
     onConfirm(valid);
     onClose();
+  };
+
+  const runValidate = () => {
+    if (!revalidate) return;
+    try {
+      const parsed = revalidate(pasteText, pasteKind);
+      const valid = parsed.filter((r) => r.errors.length === 0).length;
+      setPasteResult({ rows: parsed, valid, error: parsed.length - valid });
+    } catch (e: any) {
+      setPasteResult({ rows: [], valid: 0, error: 1 });
+    }
   };
 
   const errorRows = rows.filter((r) => r.errors.length > 0);
@@ -80,9 +99,67 @@ export default function ImportPreviewDialog<T extends Record<string, any>>({
                 </button>
               </>
             )}
+            {revalidate && (
+              <button onClick={() => setPasteOpen((v) => !v)}
+                className="text-xs px-2 py-1.5 rounded border border-primary text-primary hover:bg-primary/10 inline-flex items-center gap-1"
+                title="Tempel teks JSON/CSV dan validasi terhadap skema">
+                <ClipboardCheck size={12}/> Paste & Validate
+              </button>
+            )}
             <button onClick={onClose} className="p-1.5 rounded hover:bg-muted"><X size={16} /></button>
           </div>
         </div>
+
+        {pasteOpen && revalidate && (
+          <div className="px-5 py-3 border-b border-border bg-muted/40 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-semibold text-foreground inline-flex items-center gap-1">
+                <ClipboardCheck size={12}/> One-click Validator
+              </span>
+              <select value={pasteKind} onChange={(e) => setPasteKind(e.target.value as any)}
+                className="text-xs px-2 py-1 rounded border border-input bg-background">
+                <option value="json">JSON</option>
+                <option value="csv">CSV</option>
+              </select>
+              <button onClick={runValidate} disabled={!pasteText.trim()}
+                className="text-xs px-2 py-1 rounded bg-primary text-primary-foreground disabled:opacity-40">
+                Validate
+              </button>
+              {pasteResult && (
+                <span className="text-xs">
+                  <span className="text-emerald-600 font-medium">{pasteResult.valid} valid</span>
+                  {" · "}
+                  <span className={pasteResult.error > 0 ? "text-red-600 font-medium" : "text-muted-foreground"}>{pasteResult.error} error</span>
+                  {pasteResult.error === 0 && pasteResult.valid > 0 && (
+                    <span className="ml-2 inline-flex items-center gap-1 text-emerald-700">
+                      <CheckCircle2 size={12}/> Skema cocok
+                    </span>
+                  )}
+                </span>
+              )}
+              {pasteResult && onReplaceRows && pasteResult.rows.length > 0 && (
+                <button onClick={() => { onReplaceRows(pasteResult.rows, "(pasted)"); setPasteOpen(false); setPasteResult(null); setPasteText(""); }}
+                  className="ml-auto text-xs px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                  Gunakan untuk preview
+                </button>
+              )}
+            </div>
+            <textarea value={pasteText} onChange={(e) => { setPasteText(e.target.value); setPasteResult(null); }}
+              placeholder={pasteKind === "json" ? '[\n  { "id": "...", "who": "...", ... }\n]' : "id,who,action,target,at\n..."}
+              className="w-full h-28 text-xs font-mono px-2 py-1.5 rounded border border-input bg-background" />
+            {pasteResult && pasteResult.error > 0 && (
+              <div className="text-[11px] text-red-600 max-h-24 overflow-auto">
+                <p className="font-semibold mb-0.5">Error validasi:</p>
+                <ul className="space-y-0.5">
+                  {pasteResult.rows.filter((r) => r.errors.length > 0).slice(0, 8).map((r) => (
+                    <li key={r.index}><span className="font-mono">Baris {r.index + 1}:</span> {r.errors.join("; ")}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
 
         <div className="flex-1 overflow-auto">
           <table className="w-full text-xs">
