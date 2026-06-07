@@ -336,21 +336,8 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
                   <p className="font-semibold text-foreground">{detail.regressionTC}</p>
                 </div>
               </div>
-              <div>
-                <p className="text-xs font-semibold text-foreground mb-2">Submodule pemicu</p>
-                <ul className="space-y-1.5">
-                  {detail.subs.length === 0 && <li className="text-xs text-muted-foreground">Tidak ada data submodule.</li>}
-                  {detail.subs.sort((a, b) => a.rate - b.rate).map((s) => (
-                    <li key={s.id} className="text-xs p-2 rounded border border-border flex items-center justify-between gap-2">
-                      <span className="truncate flex-1 text-foreground">{s.name}</span>
-                      <span className="text-muted-foreground">{s.passed}/{s.total}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] ${s.rate < 50 ? "bg-red-100 text-red-700" : s.rate < 80 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
-                        {s.rate.toFixed(1)}%
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <RegressionSubsList subs={detail.subs} />
+
               <div className="pt-3 border-t border-border flex gap-2">
                 <button onClick={() => { ackOne(detail); setDetail(null); }}
                   className="flex-1 text-xs px-3 py-2 rounded border border-red-300 text-red-700 hover:bg-red-50">
