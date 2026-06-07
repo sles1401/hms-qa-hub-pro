@@ -35,11 +35,15 @@ function dlBlob(name: string, content: string, mime: string) {
 }
 
 export default function ImportPreviewDialog<T extends Record<string, any>>({
-  open, onClose, fileName, rows, mode, onConfirm, columns, sample,
+  open, onClose, fileName, rows, mode, onConfirm, columns, sample, revalidate, onReplaceRows,
 }: Props<T>) {
   const validCount = useMemo(() => rows.filter((r) => r.errors.length === 0).length, [rows]);
   const errorCount = rows.length - validCount;
   const [showAllErrors, setShowAllErrors] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [pasteKind, setPasteKind] = useState<"json" | "csv">("json");
+  const [pasteResult, setPasteResult] = useState<{ rows: PreviewRow<T>[]; valid: number; error: number } | null>(null);
   if (!open) return null;
 
   const confirm = () => {
@@ -47,6 +51,17 @@ export default function ImportPreviewDialog<T extends Record<string, any>>({
     if (valid.length === 0) return;
     onConfirm(valid);
     onClose();
+  };
+
+  const runValidate = () => {
+    if (!revalidate) return;
+    try {
+      const parsed = revalidate(pasteText, pasteKind);
+      const valid = parsed.filter((r) => r.errors.length === 0).length;
+      setPasteResult({ rows: parsed, valid, error: parsed.length - valid });
+    } catch (e: any) {
+      setPasteResult({ rows: [], valid: 0, error: 1 });
+    }
   };
 
   const errorRows = rows.filter((r) => r.errors.length > 0);
