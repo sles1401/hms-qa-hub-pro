@@ -135,6 +135,51 @@ const REGRESSION_SNAPSHOT_KEY = "hms-qa-regression-snapshot";
 
 interface AlertItem { id: string; name: string; before: number; after: number; total: number; regressionTC: number; subs: { id: string; name: string; passed: number; total: number; rate: number }[]; }
 
+function RegressionSubsList({ subs }: { subs: AlertItem["subs"] }) {
+  const [q, setQ] = useState("");
+  const [sort, setSort] = useState<"rateAsc" | "rateDesc" | "name" | "failDesc">("rateAsc");
+  const display = useMemo(() => {
+    const filtered = subs.filter((s) => !q.trim() || s.name.toLowerCase().includes(q.toLowerCase()));
+    const arr = [...filtered];
+    if (sort === "rateAsc") arr.sort((a, b) => a.rate - b.rate);
+    else if (sort === "rateDesc") arr.sort((a, b) => b.rate - a.rate);
+    else if (sort === "name") arr.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sort === "failDesc") arr.sort((a, b) => (b.total - b.passed) - (a.total - a.passed));
+    return arr;
+  }, [subs, q, sort]);
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <p className="text-xs font-semibold text-foreground">Submodule pemicu ({display.length}/{subs.length})</p>
+        <select value={sort} onChange={(e) => setSort(e.target.value as any)}
+          className="text-[11px] px-1.5 py-1 rounded border border-input bg-background">
+          <option value="rateAsc">Rate ↑ (terendah dulu)</option>
+          <option value="rateDesc">Rate ↓ (tertinggi dulu)</option>
+          <option value="failDesc">Failed terbanyak</option>
+          <option value="name">Nama (A–Z)</option>
+        </select>
+      </div>
+      <div className="relative mb-2">
+        <Search size={11} className="absolute left-2 top-2 text-muted-foreground" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari submodule / trigger case..."
+          className="w-full pl-7 pr-2 py-1.5 text-xs rounded border border-input bg-background" />
+      </div>
+      <ul className="space-y-1.5">
+        {display.length === 0 && <li className="text-xs text-muted-foreground">Tidak ada submodule cocok.</li>}
+        {display.map((s) => (
+          <li key={s.id} className="text-xs p-2 rounded border border-border flex items-center justify-between gap-2">
+            <span className="truncate flex-1 text-foreground">{s.name}</span>
+            <span className="text-muted-foreground">{s.passed}/{s.total}</span>
+            <span className={`px-1.5 py-0.5 rounded text-[10px] ${s.rate < 50 ? "bg-red-100 text-red-700" : s.rate < 80 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+              {s.rate.toFixed(1)}%
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function RegressionAlert({ categories, submoduleStats, env }: { categories: Category[]; submoduleStats: Record<string, SubmoduleStats>; env: string }) {
   const [settingsVersion, setSettingsVersion] = useState(0);
   const [statusVersion, setStatusVersion] = useState(0);
