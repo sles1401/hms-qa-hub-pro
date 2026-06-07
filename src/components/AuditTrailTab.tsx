@@ -351,6 +351,8 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
         mode={importMode}
         onConfirm={confirmImport}
         sample={{ jsonContent: SAMPLE_JSON, csvContent: SAMPLE_CSV, baseName: "audit-trail" }}
+        revalidate={(text, kind) => parseRows(text, kind)}
+        onReplaceRows={(rows, name) => { setPreviewRows(rows); setPreviewName(name); }}
         columns={[
           { key: "who", label: "User" },
           { key: "action", label: "Action" },
