@@ -15,6 +15,7 @@ import RegressionSettingsDialog from "@/components/RegressionSettingsDialog";
 import { getRegressionSettings } from "@/lib/adminSettings";
 import { loadAlertStatuses, setAlertStatus, clearAlertStatus, fingerprint } from "@/lib/alertStatus";
 import { loadPresets, addPreset, deletePreset, type FilterPreset } from "@/lib/savedFilters";
+import { buildExportFilename } from "@/lib/exportFilename";
 
 // Field-level validators
 function validateTitle(v: string): string | null {
