@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { X, CheckCircle2, AlertCircle, Upload, FileJson, FileSpreadsheet } from "lucide-react";
+import { X, CheckCircle2, AlertCircle, Upload, FileJson, FileSpreadsheet, ClipboardCheck } from "lucide-react";
 
 export interface PreviewRow<T> {
   index: number;
@@ -22,6 +22,10 @@ interface Props<T> {
     csvContent: string;
     baseName: string;
   };
+  /** Optional revalidator — enables a paste-and-validate panel that re-runs schema checks against pasted text. */
+  revalidate?: (text: string, kind: "json" | "csv") => PreviewRow<T>[];
+  /** Optional replacer — when provided alongside revalidate, the user can replace preview rows with pasted content. */
+  onReplaceRows?: (rows: PreviewRow<T>[], fileName: string) => void;
 }
 
 function dlBlob(name: string, content: string, mime: string) {
