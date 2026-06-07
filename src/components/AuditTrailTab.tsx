@@ -148,16 +148,53 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
     };
   };
 
+  const exportScope = { user, target, q };
   const exportJson = () => {
     const data = filtered.map(toExportShape);
-    dl(`audit-${exportFormat}-${Date.now()}.json`, JSON.stringify(data, null, 2), "application/json");
+    dl(buildExportFilename({ prefix: "audit", format: exportFormat, ext: "json", from, to, scope: exportScope }),
+       JSON.stringify(data, null, 2), "application/json");
   };
   const exportCsv = () => {
     const data = filtered.map(toExportShape);
     if (data.length === 0) return;
     const headers = Object.keys(data[0]);
     const lines = [headers.join(","), ...data.map((row) => headers.map((h) => csvEsc((row as any)[h])).join(","))];
-    dl(`audit-${exportFormat}-${Date.now()}.csv`, lines.join("\n"), "text/csv");
+    dl(buildExportFilename({ prefix: "audit", format: exportFormat, ext: "csv", from, to, scope: exportScope }),
+       lines.join("\n"), "text/csv");
+  };
+
+  // Shared parser used by file imports and the one-click paste validator.
+  const parseRows = (txt: string, kind: "json" | "csv"): PreviewRow<AuditLogEntry>[] => {
+    const rawRows: any[] = [];
+    if (kind === "json") {
+      const parsed = JSON.parse(txt);
+      if (!Array.isArray(parsed)) throw new Error("JSON harus berupa array");
+      parsed.forEach((p) => rawRows.push(p));
+    } else {
+      const lines = txt.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      if (lines.length === 0) throw new Error("CSV kosong");
+      const header = lines[0].toLowerCase();
+      const hasHeader = /id|who|action|target|at|user|module|activity|timestamp/.test(header);
+      const headerCells = hasHeader ? parseCsvLine(lines[0]).map((c) => c.trim().toLowerCase()) : ["id","who","action","target","at"];
+      const data = hasHeader ? lines.slice(1) : lines;
+      const colMap: Record<string, string> = {
+        user: "who", who: "who",
+        activity: "action", action: "action",
+        module: "target", target: "target",
+        timestamp: "at", timestamp_iso: "at", at: "at",
+        id: "id",
+      };
+      data.forEach((ln) => {
+        const cells = parseCsvLine(ln);
+        const obj: any = {};
+        headerCells.forEach((h, i) => { const k = colMap[h] ?? h; obj[k] = cells[i]; });
+        rawRows.push(obj);
+      });
+    }
+    return rawRows.map((r, i) => {
+      const { entry, errors } = validateEntry(r);
+      return { index: i, raw: JSON.stringify(r), parsed: entry, errors };
+    });
   };
 
   const handleImport = (file: File) => {
@@ -166,37 +203,8 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
     reader.onload = () => {
       try {
         const txt = String(reader.result || "");
-        const rawRows: any[] = [];
-        if (file.name.toLowerCase().endsWith(".json")) {
-          const parsed = JSON.parse(txt);
-          if (!Array.isArray(parsed)) throw new Error("JSON harus berupa array");
-          parsed.forEach((p) => rawRows.push(p));
-        } else {
-          const lines = txt.split(/\r?\n/).filter((l) => l.trim().length > 0);
-          if (lines.length === 0) throw new Error("CSV kosong");
-          const header = lines[0].toLowerCase();
-          const hasHeader = /id|who|action|target|at|user|module|activity|timestamp/.test(header);
-          const headerCells = hasHeader ? parseCsvLine(lines[0]).map((c) => c.trim().toLowerCase()) : ["id","who","action","target","at"];
-          const data = hasHeader ? lines.slice(1) : lines;
-          // map human-readable column names back to raw
-          const colMap: Record<string, string> = {
-            user: "who", who: "who",
-            activity: "action", action: "action",
-            module: "target", target: "target",
-            timestamp: "at", timestamp_iso: "at", at: "at",
-            id: "id",
-          };
-          data.forEach((ln) => {
-            const cells = parseCsvLine(ln);
-            const obj: any = {};
-            headerCells.forEach((h, i) => { const k = colMap[h] ?? h; obj[k] = cells[i]; });
-            rawRows.push(obj);
-          });
-        }
-        const rows: PreviewRow<AuditLogEntry>[] = rawRows.map((r, i) => {
-          const { entry, errors } = validateEntry(r);
-          return { index: i, raw: JSON.stringify(r), parsed: entry, errors };
-        });
+        const kind: "json" | "csv" = file.name.toLowerCase().endsWith(".json") ? "json" : "csv";
+        const rows = parseRows(txt, kind);
         setPreviewName(file.name);
         setPreviewRows(rows);
         setPreviewOpen(true);
@@ -206,6 +214,7 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
     };
     reader.readAsText(file);
   };
+
 
   const confirmImport = (entries: AuditLogEntry[]) => {
     if (importMode === "overwrite" && !confirm(`Overwrite seluruh log dengan ${entries.length} entri?`)) return;
