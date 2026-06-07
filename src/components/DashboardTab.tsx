@@ -613,26 +613,27 @@ export default function DashboardTab({
   };
 
   // Export history (uses currently filtered view + selected format)
+  const buildHistoryExportName = (ext: "json" | "csv") => buildExportFilename({
+    prefix: "dashboard-history",
+    format: historyExportFormat,
+    ext,
+    from: filterFrom,
+    to: filterTo,
+    scope: { field: filterField, source: filterSource, q: filterQuery },
+  });
   const exportHistoryJSON = () => {
     if (filteredHistory.length === 0) return;
     const data = filteredHistory.map(historyToShape);
-    downloadFile(
-      `dashboard-history-${historyExportFormat}-${new Date().toISOString().slice(0, 10)}.json`,
-      JSON.stringify(data, null, 2),
-      "application/json"
-    );
+    downloadFile(buildHistoryExportName("json"), JSON.stringify(data, null, 2), "application/json");
   };
   const exportHistoryCSV = () => {
     if (filteredHistory.length === 0) return;
     const data = filteredHistory.map(historyToShape);
     const headers = Object.keys(data[0]);
     const rows = data.map((row) => headers.map((h) => csvEscape(String((row as any)[h] ?? ""))).join(","));
-    downloadFile(
-      `dashboard-history-${historyExportFormat}-${new Date().toISOString().slice(0, 10)}.csv`,
-      [headers.join(","), ...rows].join("\n"),
-      "text/csv"
-    );
+    downloadFile(buildHistoryExportName("csv"), [headers.join(","), ...rows].join("\n"), "text/csv");
   };
+
 
   // Import history (JSON/CSV) with strict schema validation
   const VALID_FIELDS: FieldKey[] = ["insightText", "insightTitle", "learnMoreLabel", "learnMoreUrl"];
