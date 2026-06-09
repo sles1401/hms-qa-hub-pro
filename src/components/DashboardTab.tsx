@@ -1008,6 +1008,7 @@ export default function DashboardTab({
       </div>
 
       <RegressionAlert categories={categories} submoduleStats={submoduleStats} env={env} />
+      <HealthAlertMonitor />
 
 
 
