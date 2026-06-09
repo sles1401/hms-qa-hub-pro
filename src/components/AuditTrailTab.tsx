@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { History, Trash2, Download, Search, Upload, AlertCircle, Bookmark, X } from "lucide-react";
-import { type AuditLogEntry } from "@/lib/store";
+import { type AuditLogEntry, type AuditSource } from "@/lib/store";
 import ImportPreviewDialog, { type PreviewRow } from "@/components/ImportPreviewDialog";
 import { loadPresets, addPreset, deletePreset, type FilterPreset } from "@/lib/savedFilters";
 import { buildExportFilename } from "@/lib/exportFilename";
@@ -11,7 +11,7 @@ interface Props {
   onImport?: (entries: AuditLogEntry[], mode: "merge" | "overwrite") => void;
 }
 
-type AuditFilters = { user: string; target: string; from: string; to: string; q: string };
+type AuditFilters = { user: string; target: string; from: string; to: string; q: string; source: string };
 const FILTER_KEY = "hms-qa-audit-filters";
 const PRESET_SCOPE = "audit";
 
