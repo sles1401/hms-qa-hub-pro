@@ -145,14 +145,16 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
   }, [log, user, target, from, to, q, source]);
 
   const toExportShape = (l: AuditLogEntry) => {
+    const src = deriveSource(l);
     if (exportFormat === "raw") {
-      return { id: l.id, who: l.who, action: l.action, target: l.target, at: l.at };
+      return { id: l.id, who: l.who, action: l.action, target: l.target, at: l.at, source: src };
     }
     return {
       id: l.id,
       user: l.who,
       activity: l.action,
       module: l.target,
+      source: src,
       timestamp: new Date(l.at).toLocaleString("id-ID", {
         dateStyle: "medium", timeStyle: "medium",
       }),
@@ -160,7 +162,7 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
     };
   };
 
-  const exportScope = { user, target, q };
+  const exportScope = { user, target, q, source };
   const exportJson = () => {
     const data = filtered.map(toExportShape);
     dl(buildExportFilename({ prefix: "audit", format: exportFormat, ext: "json", from, to, scope: exportScope }),
