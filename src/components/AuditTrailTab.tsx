@@ -289,10 +289,20 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
       )}
 
       <div className="bg-card rounded-xl border border-border p-3 space-y-2">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
           <select value={user} onChange={(e) => setUser(e.target.value)} className="text-xs px-2 py-1.5 rounded border border-input bg-background">
             <option value="">Semua User</option>
             {users.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+          <select value={source} onChange={(e) => setSource(e.target.value)}
+            title="Filter berdasarkan sumber aktivitas"
+            className="text-xs px-2 py-1.5 rounded border border-input bg-background">
+            <option value="">Semua Sumber</option>
+            <option value="manual">Manual</option>
+            <option value="sync">Sync</option>
+            <option value="healthcheck">Healthcheck</option>
+            <option value="import">Import</option>
+            <option value="system">System</option>
           </select>
           <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Modul / target..."
             className="text-xs px-2 py-1.5 rounded border border-input bg-background" />
