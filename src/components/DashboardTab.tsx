@@ -412,7 +412,7 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
                   <p className="font-semibold text-foreground">{detail.regressionTC}</p>
                 </div>
               </div>
-              <RegressionSubsList subs={detail.subs} />
+              <RegressionSubsList subs={detail.subs} env={env} />
 
               <div className="pt-3 border-t border-border flex gap-2">
                 <button onClick={() => { ackOne(detail); setDetail(null); }}
