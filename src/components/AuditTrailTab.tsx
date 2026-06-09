@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { History, Trash2, Download, Search, Upload, AlertCircle, Bookmark, X } from "lucide-react";
-import { type AuditLogEntry } from "@/lib/store";
+import { type AuditLogEntry, type AuditSource } from "@/lib/store";
 import ImportPreviewDialog, { type PreviewRow } from "@/components/ImportPreviewDialog";
 import { loadPresets, addPreset, deletePreset, type FilterPreset } from "@/lib/savedFilters";
 import { buildExportFilename } from "@/lib/exportFilename";
@@ -11,7 +11,7 @@ interface Props {
   onImport?: (entries: AuditLogEntry[], mode: "merge" | "overwrite") => void;
 }
 
-type AuditFilters = { user: string; target: string; from: string; to: string; q: string };
+type AuditFilters = { user: string; target: string; from: string; to: string; q: string; source: string };
 const FILTER_KEY = "hms-qa-audit-filters";
 const PRESET_SCOPE = "audit";
 
@@ -90,10 +90,11 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
   const [from, setFrom] = useState(persisted.from ?? "");
   const [to, setTo] = useState(persisted.to ?? "");
   const [q, setQ] = useState(persisted.q ?? "");
+  const [source, setSource] = useState(persisted.source ?? "");
 
   useEffect(() => {
-    localStorage.setItem(FILTER_KEY, JSON.stringify({ user, target, from, to, q }));
-  }, [user, target, from, to, q]);
+    localStorage.setItem(FILTER_KEY, JSON.stringify({ user, target, from, to, q, source }));
+  }, [user, target, from, to, q, source]);
 
   // saved presets
   const [presets, setPresets] = useState<FilterPreset<AuditFilters>[]>(() => loadPresets(PRESET_SCOPE));
@@ -105,22 +106,33 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
   const handleSavePreset = () => {
     const name = window.prompt("Nama preset filter:", `Preset ${presets.length + 1}`);
     if (!name) return;
-    addPreset<AuditFilters>(PRESET_SCOPE, name, { user, target, from, to, q });
+    addPreset<AuditFilters>(PRESET_SCOPE, name, { user, target, from, to, q, source });
   };
   const applyPreset = (id: string) => {
     const p = presets.find((x) => x.id === id);
     if (!p) return;
     setUser(p.values.user || ""); setTarget(p.values.target || "");
     setFrom(p.values.from || ""); setTo(p.values.to || "");
-    setQ(p.values.q || "");
+    setQ(p.values.q || ""); setSource(p.values.source || "");
   };
 
   const users = useMemo(() => Array.from(new Set(log.map((l) => l.who))).sort(), [log]);
+
+  /** Heuristic source for entries that pre-date the source field. */
+  const deriveSource = (l: AuditLogEntry): AuditSource => {
+    if (l.source) return l.source;
+    const a = `${l.action} ${l.target}`.toLowerCase();
+    if (/health|ping|uptime/.test(a)) return "healthcheck";
+    if (/sync|promote|deploy/.test(a)) return "sync";
+    if (/import/.test(a)) return "import";
+    return "manual";
+  };
 
   const filtered = useMemo(() => {
     return log.filter((l) => {
       if (user && l.who !== user) return false;
       if (target && !l.target.toLowerCase().includes(target.toLowerCase())) return false;
+      if (source && deriveSource(l) !== source) return false;
       const t = new Date(l.at).getTime();
       if (from && t < new Date(from).getTime()) return false;
       if (to && t > new Date(to).getTime() + 86400000) return false;
@@ -130,17 +142,19 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
       }
       return true;
     });
-  }, [log, user, target, from, to, q]);
+  }, [log, user, target, from, to, q, source]);
 
   const toExportShape = (l: AuditLogEntry) => {
+    const src = deriveSource(l);
     if (exportFormat === "raw") {
-      return { id: l.id, who: l.who, action: l.action, target: l.target, at: l.at };
+      return { id: l.id, who: l.who, action: l.action, target: l.target, at: l.at, source: src };
     }
     return {
       id: l.id,
       user: l.who,
       activity: l.action,
       module: l.target,
+      source: src,
       timestamp: new Date(l.at).toLocaleString("id-ID", {
         dateStyle: "medium", timeStyle: "medium",
       }),
@@ -148,7 +162,7 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
     };
   };
 
-  const exportScope = { user, target, q };
+  const exportScope = { user, target, q, source };
   const exportJson = () => {
     const data = filtered.map(toExportShape);
     dl(buildExportFilename({ prefix: "audit", format: exportFormat, ext: "json", from, to, scope: exportScope }),
@@ -275,10 +289,20 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
       )}
 
       <div className="bg-card rounded-xl border border-border p-3 space-y-2">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
           <select value={user} onChange={(e) => setUser(e.target.value)} className="text-xs px-2 py-1.5 rounded border border-input bg-background">
             <option value="">Semua User</option>
             {users.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+          <select value={source} onChange={(e) => setSource(e.target.value)}
+            title="Filter berdasarkan sumber aktivitas"
+            className="text-xs px-2 py-1.5 rounded border border-input bg-background">
+            <option value="">Semua Sumber</option>
+            <option value="manual">Manual</option>
+            <option value="sync">Sync</option>
+            <option value="healthcheck">Healthcheck</option>
+            <option value="import">Import</option>
+            <option value="system">System</option>
           </select>
           <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Modul / target..."
             className="text-xs px-2 py-1.5 rounded border border-input bg-background" />

@@ -12,6 +12,7 @@ import { useRole } from "@/hooks/useRole";
 import ReportDialog from "@/components/ReportDialog";
 import SyncDiffDialog from "@/components/SyncDiffDialog";
 import RegressionSettingsDialog from "@/components/RegressionSettingsDialog";
+import HealthAlertMonitor from "@/components/HealthAlertMonitor";
 import { getRegressionSettings } from "@/lib/adminSettings";
 import { loadAlertStatuses, setAlertStatus, clearAlertStatus, fingerprint } from "@/lib/alertStatus";
 import { loadPresets, addPreset, deletePreset, type FilterPreset } from "@/lib/savedFilters";
@@ -135,9 +136,23 @@ const REGRESSION_SNAPSHOT_KEY = "hms-qa-regression-snapshot";
 
 interface AlertItem { id: string; name: string; before: number; after: number; total: number; regressionTC: number; subs: { id: string; name: string; passed: number; total: number; rate: number }[]; }
 
-function RegressionSubsList({ subs }: { subs: AlertItem["subs"] }) {
+function RegressionSubsList({ subs, env }: { subs: AlertItem["subs"]; env: string }) {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<"rateAsc" | "rateDesc" | "name" | "failDesc">("rateAsc");
+  const [statusVersion, setStatusVersion] = useState(0);
+  useEffect(() => {
+    const h = () => setStatusVersion((v) => v + 1);
+    window.addEventListener("hms-qa-alert-status-change", h);
+    return () => window.removeEventListener("hms-qa-alert-status-change", h);
+  }, []);
+  const statuses = useMemo(() => loadAlertStatuses(), [statusVersion]);
+  const keyFor = (id: string) => `sub:${env}:${id}`;
+  const ack = (s: AlertItem["subs"][number]) =>
+    setAlertStatus(keyFor(s.id), { state: "ack", at: new Date().toISOString(), before: s.total, after: s.passed });
+  const resolve = (s: AlertItem["subs"][number]) =>
+    setAlertStatus(keyFor(s.id), { state: "resolved", at: new Date().toISOString(), before: s.total, after: s.passed });
+  const undo = (s: AlertItem["subs"][number]) => clearAlertStatus(keyFor(s.id));
+
   const display = useMemo(() => {
     const filtered = subs.filter((s) => !q.trim() || s.name.toLowerCase().includes(q.toLowerCase()));
     const arr = [...filtered];
@@ -166,15 +181,31 @@ function RegressionSubsList({ subs }: { subs: AlertItem["subs"] }) {
       </div>
       <ul className="space-y-1.5">
         {display.length === 0 && <li className="text-xs text-muted-foreground">Tidak ada submodule cocok.</li>}
-        {display.map((s) => (
-          <li key={s.id} className="text-xs p-2 rounded border border-border flex items-center justify-between gap-2">
-            <span className="truncate flex-1 text-foreground">{s.name}</span>
-            <span className="text-muted-foreground">{s.passed}/{s.total}</span>
-            <span className={`px-1.5 py-0.5 rounded text-[10px] ${s.rate < 50 ? "bg-red-100 text-red-700" : s.rate < 80 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
-              {s.rate.toFixed(1)}%
-            </span>
-          </li>
-        ))}
+        {display.map((s) => {
+          const st = statuses[keyFor(s.id)];
+          return (
+            <li key={s.id} className="text-xs p-2 rounded border border-border flex items-center justify-between gap-2 flex-wrap">
+              <span className="truncate flex-1 text-foreground min-w-[80px]">{s.name}</span>
+              <span className="text-muted-foreground">{s.passed}/{s.total}</span>
+              <span className={`px-1.5 py-0.5 rounded text-[10px] ${s.rate < 50 ? "bg-red-100 text-red-700" : s.rate < 80 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                {s.rate.toFixed(1)}%
+              </span>
+              {st && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-200 text-amber-900 uppercase">{st.state}</span>
+              )}
+              <span className="inline-flex gap-1">
+                {st ? (
+                  <button onClick={() => undo(s)} className="text-[10px] px-1.5 py-0.5 rounded border border-border hover:bg-muted">Undo</button>
+                ) : (
+                  <>
+                    <button onClick={() => ack(s)} className="text-[10px] px-1.5 py-0.5 rounded border border-red-300 text-red-700 hover:bg-red-50">Ack</button>
+                    <button onClick={() => resolve(s)} className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50">Resolve</button>
+                  </>
+                )}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -381,7 +412,7 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
                   <p className="font-semibold text-foreground">{detail.regressionTC}</p>
                 </div>
               </div>
-              <RegressionSubsList subs={detail.subs} />
+              <RegressionSubsList subs={detail.subs} env={env} />
 
               <div className="pt-3 border-t border-border flex gap-2">
                 <button onClick={() => { ackOne(detail); setDetail(null); }}
@@ -1008,6 +1039,7 @@ export default function DashboardTab({
       </div>
 
       <RegressionAlert categories={categories} submoduleStats={submoduleStats} env={env} />
+      <HealthAlertMonitor />
 
 
 
