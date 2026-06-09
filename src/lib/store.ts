@@ -85,12 +85,14 @@ export interface BugItem {
   updatedAt: string;
 }
 
+export type AuditSource = "manual" | "sync" | "healthcheck" | "import" | "system";
 export interface AuditLogEntry {
   id: string;
   who: string;
   action: string;
   target: string;
   at: string;
+  source?: AuditSource;
 }
 
 export type Environment = "staging" | "production";
