@@ -12,6 +12,7 @@ import { useRole } from "@/hooks/useRole";
 import ReportDialog from "@/components/ReportDialog";
 import SyncDiffDialog from "@/components/SyncDiffDialog";
 import RegressionSettingsDialog from "@/components/RegressionSettingsDialog";
+import HealthAlertMonitor from "@/components/HealthAlertMonitor";
 import { getRegressionSettings } from "@/lib/adminSettings";
 import { loadAlertStatuses, setAlertStatus, clearAlertStatus, fingerprint } from "@/lib/alertStatus";
 import { loadPresets, addPreset, deletePreset, type FilterPreset } from "@/lib/savedFilters";
