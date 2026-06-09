@@ -90,10 +90,11 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
   const [from, setFrom] = useState(persisted.from ?? "");
   const [to, setTo] = useState(persisted.to ?? "");
   const [q, setQ] = useState(persisted.q ?? "");
+  const [source, setSource] = useState(persisted.source ?? "");
 
   useEffect(() => {
-    localStorage.setItem(FILTER_KEY, JSON.stringify({ user, target, from, to, q }));
-  }, [user, target, from, to, q]);
+    localStorage.setItem(FILTER_KEY, JSON.stringify({ user, target, from, to, q, source }));
+  }, [user, target, from, to, q, source]);
 
   // saved presets
   const [presets, setPresets] = useState<FilterPreset<AuditFilters>[]>(() => loadPresets(PRESET_SCOPE));
@@ -105,22 +106,33 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
   const handleSavePreset = () => {
     const name = window.prompt("Nama preset filter:", `Preset ${presets.length + 1}`);
     if (!name) return;
-    addPreset<AuditFilters>(PRESET_SCOPE, name, { user, target, from, to, q });
+    addPreset<AuditFilters>(PRESET_SCOPE, name, { user, target, from, to, q, source });
   };
   const applyPreset = (id: string) => {
     const p = presets.find((x) => x.id === id);
     if (!p) return;
     setUser(p.values.user || ""); setTarget(p.values.target || "");
     setFrom(p.values.from || ""); setTo(p.values.to || "");
-    setQ(p.values.q || "");
+    setQ(p.values.q || ""); setSource(p.values.source || "");
   };
 
   const users = useMemo(() => Array.from(new Set(log.map((l) => l.who))).sort(), [log]);
+
+  /** Heuristic source for entries that pre-date the source field. */
+  const deriveSource = (l: AuditLogEntry): AuditSource => {
+    if (l.source) return l.source;
+    const a = `${l.action} ${l.target}`.toLowerCase();
+    if (/health|ping|uptime/.test(a)) return "healthcheck";
+    if (/sync|promote|deploy/.test(a)) return "sync";
+    if (/import/.test(a)) return "import";
+    return "manual";
+  };
 
   const filtered = useMemo(() => {
     return log.filter((l) => {
       if (user && l.who !== user) return false;
       if (target && !l.target.toLowerCase().includes(target.toLowerCase())) return false;
+      if (source && deriveSource(l) !== source) return false;
       const t = new Date(l.at).getTime();
       if (from && t < new Date(from).getTime()) return false;
       if (to && t > new Date(to).getTime() + 86400000) return false;
@@ -130,7 +142,7 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
       }
       return true;
     });
-  }, [log, user, target, from, to, q]);
+  }, [log, user, target, from, to, q, source]);
 
   const toExportShape = (l: AuditLogEntry) => {
     if (exportFormat === "raw") {
