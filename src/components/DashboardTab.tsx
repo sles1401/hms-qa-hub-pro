@@ -353,27 +353,69 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
     }
   }, [rates, env, regSettings.thresholdPct]);
 
+  const [pendingAlert, setPendingAlert] = useState<{ a: AlertItem; action: "ack" | "resolve" } | null>(null);
+  const [pendingBulk, setPendingBulk] = useState<null | "ack" | "resolve">(null);
+
   const ackAll = () => {
     alerts.forEach((a) => setAlertStatus(`${env}:${a.id}`, { state: "ack", at: new Date().toISOString(), before: a.before, after: a.after, by: "current" }));
+    toast.success(`${alerts.length} alert di-acknowledge`, {
+      duration: 6000,
+      action: { label: "Undo", onClick: () => alerts.forEach((a) => clearAlertStatus(`${env}:${a.id}`)) },
+    });
   };
   const resolveAll = () => {
     let snap: Record<string, number> = {};
     try { snap = JSON.parse(localStorage.getItem(REGRESSION_SNAPSHOT_KEY) || "{}"); } catch {}
+    const prevSnap = { ...snap };
+    const snapshot = alerts.map((a) => ({ a, prev: snap[`${env}:${a.id}`] }));
     for (const a of alerts) {
       snap[`${env}:${a.id}`] = a.after;
       setAlertStatus(`${env}:${a.id}`, { state: "resolved", at: new Date().toISOString(), before: a.before, after: a.after, by: "current" });
     }
     localStorage.setItem(REGRESSION_SNAPSHOT_KEY, JSON.stringify(snap));
+    const restored = [...alerts];
     setAlerts([]);
+    toast.success(`${restored.length} alert ditandai resolved`, {
+      duration: 6000,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          snapshot.forEach(({ a }) => clearAlertStatus(`${env}:${a.id}`));
+          localStorage.setItem(REGRESSION_SNAPSHOT_KEY, JSON.stringify(prevSnap));
+          setAlerts(restored);
+        },
+      },
+    });
   };
-  const ackOne = (a: AlertItem) => setAlertStatus(`${env}:${a.id}`, { state: "ack", at: new Date().toISOString(), before: a.before, after: a.after });
+  const ackOne = (a: AlertItem) => {
+    setAlertStatus(`${env}:${a.id}`, { state: "ack", at: new Date().toISOString(), before: a.before, after: a.after });
+    toast.success(`"${a.name}" di-acknowledge`, {
+      duration: 6000,
+      action: { label: "Undo", onClick: () => clearAlertStatus(`${env}:${a.id}`) },
+    });
+  };
   const resolveOne = (a: AlertItem) => {
     let snap: Record<string, number> = {};
     try { snap = JSON.parse(localStorage.getItem(REGRESSION_SNAPSHOT_KEY) || "{}"); } catch {}
+    const prev = snap[`${env}:${a.id}`];
     snap[`${env}:${a.id}`] = a.after;
     localStorage.setItem(REGRESSION_SNAPSHOT_KEY, JSON.stringify(snap));
     setAlertStatus(`${env}:${a.id}`, { state: "resolved", at: new Date().toISOString(), before: a.before, after: a.after });
     setAlerts((arr) => arr.filter((x) => x.id !== a.id));
+    toast.success(`"${a.name}" ditandai resolved`, {
+      duration: 6000,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          clearAlertStatus(`${env}:${a.id}`);
+          let s2: Record<string, number> = {};
+          try { s2 = JSON.parse(localStorage.getItem(REGRESSION_SNAPSHOT_KEY) || "{}"); } catch {}
+          if (typeof prev === "number") s2[`${env}:${a.id}`] = prev; else delete s2[`${env}:${a.id}`];
+          localStorage.setItem(REGRESSION_SNAPSHOT_KEY, JSON.stringify(s2));
+          setAlerts((arr) => arr.some((x) => x.id === a.id) ? arr : [a, ...arr]);
+        },
+      },
+    });
   };
   const unack = (a: AlertItem) => clearAlertStatus(`${env}:${a.id}`);
 
@@ -388,7 +430,11 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
 
   if (alerts.length === 0) return null;
 
-  const severityOf = (delta: number) => delta <= -10 ? { label: "Critical", color: "bg-red-600" } : delta <= -5 ? { label: "High", color: "bg-orange-500" } : { label: "Warning", color: "bg-yellow-500" };
+  const severityOf = (delta: number) => {
+    const lvl = severityFromDelta(delta, regSettings);
+    return { label: lvl.charAt(0).toUpperCase() + lvl.slice(1), color: SEVERITY_COLORS[lvl] };
+  };
+
 
   return (
     <>
