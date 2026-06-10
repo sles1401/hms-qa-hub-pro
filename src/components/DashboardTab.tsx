@@ -545,6 +545,34 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingAlert}
+        title={pendingAlert?.action === "ack" ? "Acknowledge alert?" : "Resolve alert?"}
+        description={pendingAlert ? `${pendingAlert.a.name}: ${pendingAlert.a.before.toFixed(1)}% → ${pendingAlert.a.after.toFixed(1)}%. ${pendingAlert.action === "resolve" ? "Snapshot baseline akan diperbarui." : "Anda bisa membatalkan singkat dari toast."}` : ""}
+        confirmLabel={pendingAlert?.action === "ack" ? "Acknowledge" : "Resolve"}
+        variant={pendingAlert?.action === "resolve" ? "default" : "danger"}
+        onCancel={() => setPendingAlert(null)}
+        onConfirm={() => {
+          if (!pendingAlert) return;
+          if (pendingAlert.action === "ack") ackOne(pendingAlert.a);
+          else { resolveOne(pendingAlert.a); setDetail(null); }
+          setPendingAlert(null);
+        }}
+      />
+      <ConfirmDialog
+        open={!!pendingBulk}
+        title={pendingBulk === "ack" ? `Ack semua ${alerts.length} alert?` : `Resolve semua ${alerts.length} alert?`}
+        description="Aksi ini diterapkan ke seluruh modul yang sedang ter-alert. Bisa di-undo singkat lewat toast."
+        confirmLabel={pendingBulk === "ack" ? "Ack All" : "Resolve All"}
+        variant={pendingBulk === "resolve" ? "default" : "danger"}
+        onCancel={() => setPendingBulk(null)}
+        onConfirm={() => {
+          if (pendingBulk === "ack") ackAll();
+          else if (pendingBulk === "resolve") resolveAll();
+          setPendingBulk(null);
+        }}
+      />
     </>
   );
 }
