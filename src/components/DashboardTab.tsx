@@ -17,6 +17,8 @@ import { getRegressionSettings } from "@/lib/adminSettings";
 import { loadAlertStatuses, setAlertStatus, clearAlertStatus, fingerprint } from "@/lib/alertStatus";
 import { loadPresets, addPreset, deletePreset, type FilterPreset } from "@/lib/savedFilters";
 import { buildExportFilename } from "@/lib/exportFilename";
+import { severityFromDelta, severityFromRate, SEVERITY_BADGE, SEVERITY_COLORS, type Severity } from "@/lib/adminSettings";
+import ExportPreviewDialog from "@/components/ExportPreviewDialog";
 
 // Field-level validators
 function validateTitle(v: string): string | null {
