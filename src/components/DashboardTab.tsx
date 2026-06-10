@@ -468,9 +468,9 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
                     {fpMatch ? (
                       <button onClick={() => unack(a)} className="text-[10px] px-1.5 py-0.5 rounded border border-red-300 hover:bg-red-100">Undo</button>
                     ) : (
-                      <button onClick={() => ackOne(a)} className="text-[10px] px-1.5 py-0.5 rounded border border-red-300 hover:bg-red-100">Ack</button>
+                      <button onClick={() => setPendingAlert({ a, action: "ack" })} className="text-[10px] px-1.5 py-0.5 rounded border border-red-300 hover:bg-red-100">Ack</button>
                     )}
-                    <button onClick={() => resolveOne(a)} className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-100">Resolve</button>
+                    <button onClick={() => setPendingAlert({ a, action: "resolve" })} className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-100">Resolve</button>
                   </span>
                 </li>
               );
@@ -478,10 +478,10 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
           </ul>
         </div>
         <div className="flex flex-col gap-1 shrink-0">
-          <button onClick={ackAll} className="text-xs px-3 py-1.5 rounded border border-red-300 text-red-700 hover:bg-red-100">
+          <button onClick={() => setPendingBulk("ack")} className="text-xs px-3 py-1.5 rounded border border-red-300 text-red-700 hover:bg-red-100">
             Ack All
           </button>
-          <button onClick={resolveAll} className="text-xs px-3 py-1.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-100">
+          <button onClick={() => setPendingBulk("resolve")} className="text-xs px-3 py-1.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-100">
             Resolve All
           </button>
         </div>
