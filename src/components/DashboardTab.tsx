@@ -532,11 +532,11 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
               <RegressionSubsList subs={detail.subs} env={env} />
 
               <div className="pt-3 border-t border-border flex gap-2">
-                <button onClick={() => { ackOne(detail); setDetail(null); }}
+                <button onClick={() => setPendingAlert({ a: detail, action: "ack" })}
                   className="flex-1 text-xs px-3 py-2 rounded border border-red-300 text-red-700 hover:bg-red-50">
                   Acknowledge
                 </button>
-                <button onClick={() => { resolveOne(detail); setDetail(null); }}
+                <button onClick={() => setPendingAlert({ a: detail, action: "resolve" })}
                   className="flex-1 text-xs px-3 py-2 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50">
                   Resolve
                 </button>
