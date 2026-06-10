@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { X, FileJson, FileSpreadsheet, Download } from "lucide-react";
+import { X, FileJson, Download } from "lucide-react";
 import { SEVERITY_BADGE, type Severity } from "@/lib/adminSettings";
 
 interface Props<T> {
