@@ -1867,6 +1867,20 @@ export default function DashboardTab({
         categories={categories}
         onSaved={() => window.dispatchEvent(new CustomEvent("hms-qa-regression-settings-change"))}
       />
+
+      <ExportPreviewDialog<DashboardHistoryEntry>
+        open={historyExportPreviewOpen}
+        onClose={() => setHistoryExportPreviewOpen(false)}
+        title="Dashboard History Export"
+        items={filteredHistory}
+        getSource={(h) => h.source ?? "manual"}
+        getSeverity={(h) => historySeverity(h)}
+        scope={{ field: filterField, source: filterSource, q: filterQuery, from: filterFrom, to: filterTo, format: historyExportFormat }}
+        format={historyExportFormat}
+        filename={{ json: buildHistoryExportName("json"), csv: buildHistoryExportName("csv") }}
+        onDownloadJson={exportHistoryJSON}
+        onDownloadCsv={exportHistoryCSV}
+      />
     </div>
   );
 }
