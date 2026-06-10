@@ -390,6 +390,20 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
           { key: "at", label: "At" },
         ]}
       />
+
+      <ExportPreviewDialog<AuditLogEntry>
+        open={exportPreviewOpen}
+        onClose={() => setExportPreviewOpen(false)}
+        title="Audit Trail Export"
+        items={filtered}
+        getSource={(l) => deriveSource(l)}
+        getSeverity={(l) => auditSeverity(l)}
+        scope={{ user, target, source, q, from, to, format: exportFormat }}
+        format={exportFormat}
+        filename={{ json: exportJsonName, csv: exportCsvName }}
+        onDownloadJson={exportJson}
+        onDownloadCsv={exportCsv}
+      />
     </div>
   );
 }
