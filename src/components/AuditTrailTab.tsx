@@ -165,19 +165,28 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
   };
 
   const exportScope = { user, target, q, source };
+  const exportJsonName = buildExportFilename({ prefix: "audit", format: exportFormat, ext: "json", from, to, scope: exportScope });
+  const exportCsvName = buildExportFilename({ prefix: "audit", format: exportFormat, ext: "csv", from, to, scope: exportScope });
   const exportJson = () => {
     const data = filtered.map(toExportShape);
-    dl(buildExportFilename({ prefix: "audit", format: exportFormat, ext: "json", from, to, scope: exportScope }),
-       JSON.stringify(data, null, 2), "application/json");
+    dl(exportJsonName, JSON.stringify(data, null, 2), "application/json");
   };
   const exportCsv = () => {
     const data = filtered.map(toExportShape);
     if (data.length === 0) return;
     const headers = Object.keys(data[0]);
     const lines = [headers.join(","), ...data.map((row) => headers.map((h) => csvEsc((row as any)[h])).join(","))];
-    dl(buildExportFilename({ prefix: "audit", format: exportFormat, ext: "csv", from, to, scope: exportScope }),
-       lines.join("\n"), "text/csv");
+    dl(exportCsvName, lines.join("\n"), "text/csv");
   };
+
+  // Severity heuristic for audit entries (used in export preview summary).
+  const auditSeverity = (l: AuditLogEntry): Severity => {
+    const a = `${l.action} ${l.target}`.toLowerCase();
+    if (/delete|hapus|clear|overwrite|reset|drop/.test(a)) return "critical";
+    if (/update|edit|import|sync|promote|deploy|rollback/.test(a)) return "high";
+    return "warning";
+  };
+  const [exportPreviewOpen, setExportPreviewOpen] = useState(false);
 
   // Shared parser used by file imports and the one-click paste validator.
   const parseRows = (txt: string, kind: "json" | "csv"): PreviewRow<AuditLogEntry>[] => {
