@@ -1701,15 +1701,10 @@ export default function DashboardTab({
             </div>
             <div className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <button onClick={exportHistoryJSON} disabled={filteredHistory.length === 0}
-                  title={`Export ${filteredHistory.length} entri (hasil filter)`}
-                  className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
-                  <FileJson size={12} /> Export Filtered JSON ({filteredHistory.length})
-                </button>
-                <button onClick={exportHistoryCSV} disabled={filteredHistory.length === 0}
-                  title={`Export ${filteredHistory.length} entri (hasil filter)`}
-                  className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
-                  <FileSpreadsheet size={12} /> Export Filtered CSV ({filteredHistory.length})
+                <button onClick={() => setHistoryExportPreviewOpen(true)} disabled={filteredHistory.length === 0}
+                  title={`Preview ringkasan ${filteredHistory.length} entri sebelum download`}
+                  className="text-xs px-3 py-1.5 rounded border border-primary text-primary hover:bg-primary/10 inline-flex items-center gap-1 disabled:opacity-40">
+                  <Eye size={12} /> Preview & Export ({filteredHistory.length})
                 </button>
                 <button onClick={handleImportHistory}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
