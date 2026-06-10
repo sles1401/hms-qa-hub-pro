@@ -843,6 +843,17 @@ export default function DashboardTab({
     downloadFile(buildHistoryExportName("csv"), [headers.join(","), ...rows].join("\n"), "text/csv");
   };
 
+  // Severity heuristic for history entries (used in export preview summary).
+  const historySeverity = (h: DashboardHistoryEntry): Severity => {
+    const src = h.source ?? "manual";
+    if (src === "rollback" || src === "reset") return "critical";
+    if (src === "import" || src === "undo") return "high";
+    return "warning";
+  };
+  const [historyExportPreviewOpen, setHistoryExportPreviewOpen] = useState(false);
+
+
+
 
   // Import history (JSON/CSV) with strict schema validation
   const VALID_FIELDS: FieldKey[] = ["insightText", "insightTitle", "learnMoreLabel", "learnMoreUrl"];
