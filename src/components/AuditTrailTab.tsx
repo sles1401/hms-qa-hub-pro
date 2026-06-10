@@ -277,15 +277,10 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
               </button>
             </>
           )}
-          <button onClick={exportJson} disabled={filtered.length === 0}
-            title={`Export ${filtered.length} entri (${exportFormat})`}
-            className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg border border-border hover:bg-muted text-muted-foreground disabled:opacity-50">
-            <Download size={12}/> JSON ({filtered.length})
-          </button>
-          <button onClick={exportCsv} disabled={filtered.length === 0}
-            title={`Export ${filtered.length} entri (${exportFormat})`}
-            className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg border border-border hover:bg-muted text-muted-foreground disabled:opacity-50">
-            <Download size={12}/> CSV ({filtered.length})
+          <button onClick={() => setExportPreviewOpen(true)} disabled={filtered.length === 0}
+            title={`Preview ringkasan ${filtered.length} entri sebelum download`}
+            className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg border border-primary text-primary hover:bg-primary/10 disabled:opacity-50">
+            <Eye size={12}/> Preview & Export ({filtered.length})
           </button>
           {log.length > 0 && (
             <button onClick={() => { if (confirm("Hapus seluruh log?")) onClear(); }}
