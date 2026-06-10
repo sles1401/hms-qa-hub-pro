@@ -141,7 +141,10 @@ interface AlertItem { id: string; name: string; before: number; after: number; t
 function RegressionSubsList({ subs, env }: { subs: AlertItem["subs"]; env: string }) {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<"rateAsc" | "rateDesc" | "name" | "failDesc">("rateAsc");
+  const [sevFilter, setSevFilter] = useState<"all" | Severity>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "ack" | "resolved">("all");
   const [statusVersion, setStatusVersion] = useState(0);
+  const [pending, setPending] = useState<{ sub: AlertItem["subs"][number]; action: "ack" | "resolve" } | null>(null);
   useEffect(() => {
     const h = () => setStatusVersion((v) => v + 1);
     window.addEventListener("hms-qa-alert-status-change", h);
@@ -149,21 +152,56 @@ function RegressionSubsList({ subs, env }: { subs: AlertItem["subs"]; env: strin
   }, []);
   const statuses = useMemo(() => loadAlertStatuses(), [statusVersion]);
   const keyFor = (id: string) => `sub:${env}:${id}`;
-  const ack = (s: AlertItem["subs"][number]) =>
+
+  const doAck = (s: AlertItem["subs"][number]) => {
     setAlertStatus(keyFor(s.id), { state: "ack", at: new Date().toISOString(), before: s.total, after: s.passed });
-  const resolve = (s: AlertItem["subs"][number]) =>
+    toast.success(`"${s.name}" di-acknowledge`, {
+      duration: 6000,
+      action: { label: "Undo", onClick: () => clearAlertStatus(keyFor(s.id)) },
+    });
+  };
+  const doResolve = (s: AlertItem["subs"][number]) => {
     setAlertStatus(keyFor(s.id), { state: "resolved", at: new Date().toISOString(), before: s.total, after: s.passed });
+    toast.success(`"${s.name}" ditandai resolved`, {
+      duration: 6000,
+      action: { label: "Undo", onClick: () => clearAlertStatus(keyFor(s.id)) },
+    });
+  };
   const undo = (s: AlertItem["subs"][number]) => clearAlertStatus(keyFor(s.id));
 
   const display = useMemo(() => {
-    const filtered = subs.filter((s) => !q.trim() || s.name.toLowerCase().includes(q.toLowerCase()));
+    const filtered = subs.filter((s) => {
+      if (q.trim() && !s.name.toLowerCase().includes(q.toLowerCase())) return false;
+      if (sevFilter !== "all" && severityFromRate(s.rate) !== sevFilter) return false;
+      if (statusFilter !== "all") {
+        const st = statuses[keyFor(s.id)];
+        if (statusFilter === "open" && st) return false;
+        if (statusFilter === "ack" && st?.state !== "ack") return false;
+        if (statusFilter === "resolved" && st?.state !== "resolved") return false;
+      }
+      return true;
+    });
     const arr = [...filtered];
     if (sort === "rateAsc") arr.sort((a, b) => a.rate - b.rate);
     else if (sort === "rateDesc") arr.sort((a, b) => b.rate - a.rate);
     else if (sort === "name") arr.sort((a, b) => a.name.localeCompare(b.name));
     else if (sort === "failDesc") arr.sort((a, b) => (b.total - b.passed) - (a.total - a.passed));
     return arr;
-  }, [subs, q, sort]);
+  }, [subs, q, sort, sevFilter, statusFilter, statuses]);
+
+  const sevChip = (sev: "all" | Severity, label: string) => (
+    <button key={sev} onClick={() => setSevFilter(sev)}
+      className={`text-[10px] px-1.5 py-0.5 rounded border ${sevFilter === sev ? "bg-primary text-primary-foreground border-primary" : "border-input text-muted-foreground hover:bg-muted"}`}>
+      {label}
+    </button>
+  );
+  const statusChip = (st: "all" | "open" | "ack" | "resolved", label: string) => (
+    <button key={st} onClick={() => setStatusFilter(st)}
+      className={`text-[10px] px-1.5 py-0.5 rounded border ${statusFilter === st ? "bg-primary text-primary-foreground border-primary" : "border-input text-muted-foreground hover:bg-muted"}`}>
+      {label}
+    </button>
+  );
+
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-2">
@@ -181,12 +219,28 @@ function RegressionSubsList({ subs, env }: { subs: AlertItem["subs"]; env: strin
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari submodule / trigger case..."
           className="w-full pl-7 pr-2 py-1.5 text-xs rounded border border-input bg-background" />
       </div>
+      <div className="flex flex-wrap gap-1 mb-2">
+        <span className="text-[10px] text-muted-foreground self-center mr-1">Severity:</span>
+        {sevChip("all", "All")}
+        {sevChip("critical", "Critical")}
+        {sevChip("high", "High")}
+        {sevChip("warning", "Warning")}
+      </div>
+      <div className="flex flex-wrap gap-1 mb-2">
+        <span className="text-[10px] text-muted-foreground self-center mr-1">Status:</span>
+        {statusChip("all", "All")}
+        {statusChip("open", "Open")}
+        {statusChip("ack", "Ack")}
+        {statusChip("resolved", "Resolved")}
+      </div>
       <ul className="space-y-1.5">
         {display.length === 0 && <li className="text-xs text-muted-foreground">Tidak ada submodule cocok.</li>}
         {display.map((s) => {
           const st = statuses[keyFor(s.id)];
+          const sev = severityFromRate(s.rate);
           return (
             <li key={s.id} className="text-xs p-2 rounded border border-border flex items-center justify-between gap-2 flex-wrap">
+              <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase ${SEVERITY_BADGE[sev]}`}>{sev}</span>
               <span className="truncate flex-1 text-foreground min-w-[80px]">{s.name}</span>
               <span className="text-muted-foreground">{s.passed}/{s.total}</span>
               <span className={`px-1.5 py-0.5 rounded text-[10px] ${s.rate < 50 ? "bg-red-100 text-red-700" : s.rate < 80 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
@@ -200,8 +254,8 @@ function RegressionSubsList({ subs, env }: { subs: AlertItem["subs"]; env: strin
                   <button onClick={() => undo(s)} className="text-[10px] px-1.5 py-0.5 rounded border border-border hover:bg-muted">Undo</button>
                 ) : (
                   <>
-                    <button onClick={() => ack(s)} className="text-[10px] px-1.5 py-0.5 rounded border border-red-300 text-red-700 hover:bg-red-50">Ack</button>
-                    <button onClick={() => resolve(s)} className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50">Resolve</button>
+                    <button onClick={() => setPending({ sub: s, action: "ack" })} className="text-[10px] px-1.5 py-0.5 rounded border border-red-300 text-red-700 hover:bg-red-50">Ack</button>
+                    <button onClick={() => setPending({ sub: s, action: "resolve" })} className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50">Resolve</button>
                   </>
                 )}
               </span>
@@ -209,9 +263,24 @@ function RegressionSubsList({ subs, env }: { subs: AlertItem["subs"]; env: strin
           );
         })}
       </ul>
+      <ConfirmDialog
+        open={!!pending}
+        title={pending?.action === "ack" ? "Acknowledge submodule?" : "Resolve submodule?"}
+        description={pending ? `${pending.sub.name} — Pass Rate ${pending.sub.rate.toFixed(1)}% (${pending.sub.passed}/${pending.sub.total}). Status disimpan dan bisa di-undo singkat dari toast.` : ""}
+        confirmLabel={pending?.action === "ack" ? "Acknowledge" : "Resolve"}
+        variant={pending?.action === "resolve" ? "default" : "danger"}
+        onCancel={() => setPending(null)}
+        onConfirm={() => {
+          if (!pending) return;
+          if (pending.action === "ack") doAck(pending.sub);
+          else doResolve(pending.sub);
+          setPending(null);
+        }}
+      />
     </div>
   );
 }
+
 
 function RegressionAlert({ categories, submoduleStats, env }: { categories: Category[]; submoduleStats: Record<string, SubmoduleStats>; env: string }) {
   const [settingsVersion, setSettingsVersion] = useState(0);
