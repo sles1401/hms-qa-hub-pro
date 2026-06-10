@@ -17,6 +17,8 @@ import { getRegressionSettings } from "@/lib/adminSettings";
 import { loadAlertStatuses, setAlertStatus, clearAlertStatus, fingerprint } from "@/lib/alertStatus";
 import { loadPresets, addPreset, deletePreset, type FilterPreset } from "@/lib/savedFilters";
 import { buildExportFilename } from "@/lib/exportFilename";
+import { severityFromDelta, severityFromRate, SEVERITY_BADGE, SEVERITY_COLORS, type Severity } from "@/lib/adminSettings";
+import ExportPreviewDialog from "@/components/ExportPreviewDialog";
 
 // Field-level validators
 function validateTitle(v: string): string | null {
@@ -139,7 +141,10 @@ interface AlertItem { id: string; name: string; before: number; after: number; t
 function RegressionSubsList({ subs, env }: { subs: AlertItem["subs"]; env: string }) {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<"rateAsc" | "rateDesc" | "name" | "failDesc">("rateAsc");
+  const [sevFilter, setSevFilter] = useState<"all" | Severity>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "ack" | "resolved">("all");
   const [statusVersion, setStatusVersion] = useState(0);
+  const [pending, setPending] = useState<{ sub: AlertItem["subs"][number]; action: "ack" | "resolve" } | null>(null);
   useEffect(() => {
     const h = () => setStatusVersion((v) => v + 1);
     window.addEventListener("hms-qa-alert-status-change", h);
@@ -147,21 +152,56 @@ function RegressionSubsList({ subs, env }: { subs: AlertItem["subs"]; env: strin
   }, []);
   const statuses = useMemo(() => loadAlertStatuses(), [statusVersion]);
   const keyFor = (id: string) => `sub:${env}:${id}`;
-  const ack = (s: AlertItem["subs"][number]) =>
+
+  const doAck = (s: AlertItem["subs"][number]) => {
     setAlertStatus(keyFor(s.id), { state: "ack", at: new Date().toISOString(), before: s.total, after: s.passed });
-  const resolve = (s: AlertItem["subs"][number]) =>
+    toast.success(`"${s.name}" di-acknowledge`, {
+      duration: 6000,
+      action: { label: "Undo", onClick: () => clearAlertStatus(keyFor(s.id)) },
+    });
+  };
+  const doResolve = (s: AlertItem["subs"][number]) => {
     setAlertStatus(keyFor(s.id), { state: "resolved", at: new Date().toISOString(), before: s.total, after: s.passed });
+    toast.success(`"${s.name}" ditandai resolved`, {
+      duration: 6000,
+      action: { label: "Undo", onClick: () => clearAlertStatus(keyFor(s.id)) },
+    });
+  };
   const undo = (s: AlertItem["subs"][number]) => clearAlertStatus(keyFor(s.id));
 
   const display = useMemo(() => {
-    const filtered = subs.filter((s) => !q.trim() || s.name.toLowerCase().includes(q.toLowerCase()));
+    const filtered = subs.filter((s) => {
+      if (q.trim() && !s.name.toLowerCase().includes(q.toLowerCase())) return false;
+      if (sevFilter !== "all" && severityFromRate(s.rate) !== sevFilter) return false;
+      if (statusFilter !== "all") {
+        const st = statuses[keyFor(s.id)];
+        if (statusFilter === "open" && st) return false;
+        if (statusFilter === "ack" && st?.state !== "ack") return false;
+        if (statusFilter === "resolved" && st?.state !== "resolved") return false;
+      }
+      return true;
+    });
     const arr = [...filtered];
     if (sort === "rateAsc") arr.sort((a, b) => a.rate - b.rate);
     else if (sort === "rateDesc") arr.sort((a, b) => b.rate - a.rate);
     else if (sort === "name") arr.sort((a, b) => a.name.localeCompare(b.name));
     else if (sort === "failDesc") arr.sort((a, b) => (b.total - b.passed) - (a.total - a.passed));
     return arr;
-  }, [subs, q, sort]);
+  }, [subs, q, sort, sevFilter, statusFilter, statuses]);
+
+  const sevChip = (sev: "all" | Severity, label: string) => (
+    <button key={sev} onClick={() => setSevFilter(sev)}
+      className={`text-[10px] px-1.5 py-0.5 rounded border ${sevFilter === sev ? "bg-primary text-primary-foreground border-primary" : "border-input text-muted-foreground hover:bg-muted"}`}>
+      {label}
+    </button>
+  );
+  const statusChip = (st: "all" | "open" | "ack" | "resolved", label: string) => (
+    <button key={st} onClick={() => setStatusFilter(st)}
+      className={`text-[10px] px-1.5 py-0.5 rounded border ${statusFilter === st ? "bg-primary text-primary-foreground border-primary" : "border-input text-muted-foreground hover:bg-muted"}`}>
+      {label}
+    </button>
+  );
+
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-2">
@@ -179,12 +219,28 @@ function RegressionSubsList({ subs, env }: { subs: AlertItem["subs"]; env: strin
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari submodule / trigger case..."
           className="w-full pl-7 pr-2 py-1.5 text-xs rounded border border-input bg-background" />
       </div>
+      <div className="flex flex-wrap gap-1 mb-2">
+        <span className="text-[10px] text-muted-foreground self-center mr-1">Severity:</span>
+        {sevChip("all", "All")}
+        {sevChip("critical", "Critical")}
+        {sevChip("high", "High")}
+        {sevChip("warning", "Warning")}
+      </div>
+      <div className="flex flex-wrap gap-1 mb-2">
+        <span className="text-[10px] text-muted-foreground self-center mr-1">Status:</span>
+        {statusChip("all", "All")}
+        {statusChip("open", "Open")}
+        {statusChip("ack", "Ack")}
+        {statusChip("resolved", "Resolved")}
+      </div>
       <ul className="space-y-1.5">
         {display.length === 0 && <li className="text-xs text-muted-foreground">Tidak ada submodule cocok.</li>}
         {display.map((s) => {
           const st = statuses[keyFor(s.id)];
+          const sev = severityFromRate(s.rate);
           return (
             <li key={s.id} className="text-xs p-2 rounded border border-border flex items-center justify-between gap-2 flex-wrap">
+              <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase ${SEVERITY_BADGE[sev]}`}>{sev}</span>
               <span className="truncate flex-1 text-foreground min-w-[80px]">{s.name}</span>
               <span className="text-muted-foreground">{s.passed}/{s.total}</span>
               <span className={`px-1.5 py-0.5 rounded text-[10px] ${s.rate < 50 ? "bg-red-100 text-red-700" : s.rate < 80 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
@@ -198,8 +254,8 @@ function RegressionSubsList({ subs, env }: { subs: AlertItem["subs"]; env: strin
                   <button onClick={() => undo(s)} className="text-[10px] px-1.5 py-0.5 rounded border border-border hover:bg-muted">Undo</button>
                 ) : (
                   <>
-                    <button onClick={() => ack(s)} className="text-[10px] px-1.5 py-0.5 rounded border border-red-300 text-red-700 hover:bg-red-50">Ack</button>
-                    <button onClick={() => resolve(s)} className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50">Resolve</button>
+                    <button onClick={() => setPending({ sub: s, action: "ack" })} className="text-[10px] px-1.5 py-0.5 rounded border border-red-300 text-red-700 hover:bg-red-50">Ack</button>
+                    <button onClick={() => setPending({ sub: s, action: "resolve" })} className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50">Resolve</button>
                   </>
                 )}
               </span>
@@ -207,9 +263,24 @@ function RegressionSubsList({ subs, env }: { subs: AlertItem["subs"]; env: strin
           );
         })}
       </ul>
+      <ConfirmDialog
+        open={!!pending}
+        title={pending?.action === "ack" ? "Acknowledge submodule?" : "Resolve submodule?"}
+        description={pending ? `${pending.sub.name} — Pass Rate ${pending.sub.rate.toFixed(1)}% (${pending.sub.passed}/${pending.sub.total}). Status disimpan dan bisa di-undo singkat dari toast.` : ""}
+        confirmLabel={pending?.action === "ack" ? "Acknowledge" : "Resolve"}
+        variant={pending?.action === "resolve" ? "default" : "danger"}
+        onCancel={() => setPending(null)}
+        onConfirm={() => {
+          if (!pending) return;
+          if (pending.action === "ack") doAck(pending.sub);
+          else doResolve(pending.sub);
+          setPending(null);
+        }}
+      />
     </div>
   );
 }
+
 
 function RegressionAlert({ categories, submoduleStats, env }: { categories: Category[]; submoduleStats: Record<string, SubmoduleStats>; env: string }) {
   const [settingsVersion, setSettingsVersion] = useState(0);
@@ -282,27 +353,69 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
     }
   }, [rates, env, regSettings.thresholdPct]);
 
+  const [pendingAlert, setPendingAlert] = useState<{ a: AlertItem; action: "ack" | "resolve" } | null>(null);
+  const [pendingBulk, setPendingBulk] = useState<null | "ack" | "resolve">(null);
+
   const ackAll = () => {
     alerts.forEach((a) => setAlertStatus(`${env}:${a.id}`, { state: "ack", at: new Date().toISOString(), before: a.before, after: a.after, by: "current" }));
+    toast.success(`${alerts.length} alert di-acknowledge`, {
+      duration: 6000,
+      action: { label: "Undo", onClick: () => alerts.forEach((a) => clearAlertStatus(`${env}:${a.id}`)) },
+    });
   };
   const resolveAll = () => {
     let snap: Record<string, number> = {};
     try { snap = JSON.parse(localStorage.getItem(REGRESSION_SNAPSHOT_KEY) || "{}"); } catch {}
+    const prevSnap = { ...snap };
+    const snapshot = alerts.map((a) => ({ a, prev: snap[`${env}:${a.id}`] }));
     for (const a of alerts) {
       snap[`${env}:${a.id}`] = a.after;
       setAlertStatus(`${env}:${a.id}`, { state: "resolved", at: new Date().toISOString(), before: a.before, after: a.after, by: "current" });
     }
     localStorage.setItem(REGRESSION_SNAPSHOT_KEY, JSON.stringify(snap));
+    const restored = [...alerts];
     setAlerts([]);
+    toast.success(`${restored.length} alert ditandai resolved`, {
+      duration: 6000,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          snapshot.forEach(({ a }) => clearAlertStatus(`${env}:${a.id}`));
+          localStorage.setItem(REGRESSION_SNAPSHOT_KEY, JSON.stringify(prevSnap));
+          setAlerts(restored);
+        },
+      },
+    });
   };
-  const ackOne = (a: AlertItem) => setAlertStatus(`${env}:${a.id}`, { state: "ack", at: new Date().toISOString(), before: a.before, after: a.after });
+  const ackOne = (a: AlertItem) => {
+    setAlertStatus(`${env}:${a.id}`, { state: "ack", at: new Date().toISOString(), before: a.before, after: a.after });
+    toast.success(`"${a.name}" di-acknowledge`, {
+      duration: 6000,
+      action: { label: "Undo", onClick: () => clearAlertStatus(`${env}:${a.id}`) },
+    });
+  };
   const resolveOne = (a: AlertItem) => {
     let snap: Record<string, number> = {};
     try { snap = JSON.parse(localStorage.getItem(REGRESSION_SNAPSHOT_KEY) || "{}"); } catch {}
+    const prev = snap[`${env}:${a.id}`];
     snap[`${env}:${a.id}`] = a.after;
     localStorage.setItem(REGRESSION_SNAPSHOT_KEY, JSON.stringify(snap));
     setAlertStatus(`${env}:${a.id}`, { state: "resolved", at: new Date().toISOString(), before: a.before, after: a.after });
     setAlerts((arr) => arr.filter((x) => x.id !== a.id));
+    toast.success(`"${a.name}" ditandai resolved`, {
+      duration: 6000,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          clearAlertStatus(`${env}:${a.id}`);
+          let s2: Record<string, number> = {};
+          try { s2 = JSON.parse(localStorage.getItem(REGRESSION_SNAPSHOT_KEY) || "{}"); } catch {}
+          if (typeof prev === "number") s2[`${env}:${a.id}`] = prev; else delete s2[`${env}:${a.id}`];
+          localStorage.setItem(REGRESSION_SNAPSHOT_KEY, JSON.stringify(s2));
+          setAlerts((arr) => arr.some((x) => x.id === a.id) ? arr : [a, ...arr]);
+        },
+      },
+    });
   };
   const unack = (a: AlertItem) => clearAlertStatus(`${env}:${a.id}`);
 
@@ -317,7 +430,11 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
 
   if (alerts.length === 0) return null;
 
-  const severityOf = (delta: number) => delta <= -10 ? { label: "Critical", color: "bg-red-600" } : delta <= -5 ? { label: "High", color: "bg-orange-500" } : { label: "Warning", color: "bg-yellow-500" };
+  const severityOf = (delta: number) => {
+    const lvl = severityFromDelta(delta, regSettings);
+    return { label: lvl.charAt(0).toUpperCase() + lvl.slice(1), color: SEVERITY_COLORS[lvl] };
+  };
+
 
   return (
     <>
@@ -351,9 +468,9 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
                     {fpMatch ? (
                       <button onClick={() => unack(a)} className="text-[10px] px-1.5 py-0.5 rounded border border-red-300 hover:bg-red-100">Undo</button>
                     ) : (
-                      <button onClick={() => ackOne(a)} className="text-[10px] px-1.5 py-0.5 rounded border border-red-300 hover:bg-red-100">Ack</button>
+                      <button onClick={() => setPendingAlert({ a, action: "ack" })} className="text-[10px] px-1.5 py-0.5 rounded border border-red-300 hover:bg-red-100">Ack</button>
                     )}
-                    <button onClick={() => resolveOne(a)} className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-100">Resolve</button>
+                    <button onClick={() => setPendingAlert({ a, action: "resolve" })} className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-100">Resolve</button>
                   </span>
                 </li>
               );
@@ -361,10 +478,10 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
           </ul>
         </div>
         <div className="flex flex-col gap-1 shrink-0">
-          <button onClick={ackAll} className="text-xs px-3 py-1.5 rounded border border-red-300 text-red-700 hover:bg-red-100">
+          <button onClick={() => setPendingBulk("ack")} className="text-xs px-3 py-1.5 rounded border border-red-300 text-red-700 hover:bg-red-100">
             Ack All
           </button>
-          <button onClick={resolveAll} className="text-xs px-3 py-1.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-100">
+          <button onClick={() => setPendingBulk("resolve")} className="text-xs px-3 py-1.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-100">
             Resolve All
           </button>
         </div>
@@ -415,11 +532,11 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
               <RegressionSubsList subs={detail.subs} env={env} />
 
               <div className="pt-3 border-t border-border flex gap-2">
-                <button onClick={() => { ackOne(detail); setDetail(null); }}
+                <button onClick={() => setPendingAlert({ a: detail, action: "ack" })}
                   className="flex-1 text-xs px-3 py-2 rounded border border-red-300 text-red-700 hover:bg-red-50">
                   Acknowledge
                 </button>
-                <button onClick={() => { resolveOne(detail); setDetail(null); }}
+                <button onClick={() => setPendingAlert({ a: detail, action: "resolve" })}
                   className="flex-1 text-xs px-3 py-2 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50">
                   Resolve
                 </button>
@@ -428,6 +545,34 @@ function RegressionAlert({ categories, submoduleStats, env }: { categories: Cate
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingAlert}
+        title={pendingAlert?.action === "ack" ? "Acknowledge alert?" : "Resolve alert?"}
+        description={pendingAlert ? `${pendingAlert.a.name}: ${pendingAlert.a.before.toFixed(1)}% → ${pendingAlert.a.after.toFixed(1)}%. ${pendingAlert.action === "resolve" ? "Snapshot baseline akan diperbarui." : "Anda bisa membatalkan singkat dari toast."}` : ""}
+        confirmLabel={pendingAlert?.action === "ack" ? "Acknowledge" : "Resolve"}
+        variant={pendingAlert?.action === "resolve" ? "default" : "danger"}
+        onCancel={() => setPendingAlert(null)}
+        onConfirm={() => {
+          if (!pendingAlert) return;
+          if (pendingAlert.action === "ack") ackOne(pendingAlert.a);
+          else { resolveOne(pendingAlert.a); setDetail(null); }
+          setPendingAlert(null);
+        }}
+      />
+      <ConfirmDialog
+        open={!!pendingBulk}
+        title={pendingBulk === "ack" ? `Ack semua ${alerts.length} alert?` : `Resolve semua ${alerts.length} alert?`}
+        description="Aksi ini diterapkan ke seluruh modul yang sedang ter-alert. Bisa di-undo singkat lewat toast."
+        confirmLabel={pendingBulk === "ack" ? "Ack All" : "Resolve All"}
+        variant={pendingBulk === "resolve" ? "default" : "danger"}
+        onCancel={() => setPendingBulk(null)}
+        onConfirm={() => {
+          if (pendingBulk === "ack") ackAll();
+          else if (pendingBulk === "resolve") resolveAll();
+          setPendingBulk(null);
+        }}
+      />
     </>
   );
 }
@@ -697,6 +842,17 @@ export default function DashboardTab({
     const rows = data.map((row) => headers.map((h) => csvEscape(String((row as any)[h] ?? ""))).join(","));
     downloadFile(buildHistoryExportName("csv"), [headers.join(","), ...rows].join("\n"), "text/csv");
   };
+
+  // Severity heuristic for history entries (used in export preview summary).
+  const historySeverity = (h: DashboardHistoryEntry): Severity => {
+    const src = h.source ?? "manual";
+    if (src === "rollback" || src === "reset") return "critical";
+    if (src === "import" || src === "undo") return "high";
+    return "warning";
+  };
+  const [historyExportPreviewOpen, setHistoryExportPreviewOpen] = useState(false);
+
+
 
 
   // Import history (JSON/CSV) with strict schema validation
@@ -1545,15 +1701,10 @@ export default function DashboardTab({
             </div>
             <div className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <button onClick={exportHistoryJSON} disabled={filteredHistory.length === 0}
-                  title={`Export ${filteredHistory.length} entri (hasil filter)`}
-                  className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
-                  <FileJson size={12} /> Export Filtered JSON ({filteredHistory.length})
-                </button>
-                <button onClick={exportHistoryCSV} disabled={filteredHistory.length === 0}
-                  title={`Export ${filteredHistory.length} entri (hasil filter)`}
-                  className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1 disabled:opacity-40">
-                  <FileSpreadsheet size={12} /> Export Filtered CSV ({filteredHistory.length})
+                <button onClick={() => setHistoryExportPreviewOpen(true)} disabled={filteredHistory.length === 0}
+                  title={`Preview ringkasan ${filteredHistory.length} entri sebelum download`}
+                  className="text-xs px-3 py-1.5 rounded border border-primary text-primary hover:bg-primary/10 inline-flex items-center gap-1 disabled:opacity-40">
+                  <Eye size={12} /> Preview & Export ({filteredHistory.length})
                 </button>
                 <button onClick={handleImportHistory}
                   className="text-xs px-3 py-1.5 rounded border border-border text-foreground hover:bg-muted inline-flex items-center gap-1">
@@ -1715,6 +1866,20 @@ export default function DashboardTab({
         onClose={() => setShowRegressionSettings(false)}
         categories={categories}
         onSaved={() => window.dispatchEvent(new CustomEvent("hms-qa-regression-settings-change"))}
+      />
+
+      <ExportPreviewDialog<DashboardHistoryEntry>
+        open={historyExportPreviewOpen}
+        onClose={() => setHistoryExportPreviewOpen(false)}
+        title="Dashboard History Export"
+        items={filteredHistory}
+        getSource={(h) => h.source ?? "manual"}
+        getSeverity={(h) => historySeverity(h)}
+        scope={{ field: filterField, source: filterSource, q: filterQuery, from: filterFrom, to: filterTo, format: historyExportFormat }}
+        format={historyExportFormat}
+        filename={{ json: buildHistoryExportName("json"), csv: buildHistoryExportName("csv") }}
+        onDownloadJson={exportHistoryJSON}
+        onDownloadCsv={exportHistoryCSV}
       />
     </div>
   );

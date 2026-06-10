@@ -1,9 +1,11 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { History, Trash2, Download, Search, Upload, AlertCircle, Bookmark, X } from "lucide-react";
+import { History, Trash2, Download, Search, Upload, AlertCircle, Bookmark, X, Eye } from "lucide-react";
 import { type AuditLogEntry, type AuditSource } from "@/lib/store";
 import ImportPreviewDialog, { type PreviewRow } from "@/components/ImportPreviewDialog";
+import ExportPreviewDialog from "@/components/ExportPreviewDialog";
 import { loadPresets, addPreset, deletePreset, type FilterPreset } from "@/lib/savedFilters";
 import { buildExportFilename } from "@/lib/exportFilename";
+import type { Severity } from "@/lib/adminSettings";
 
 interface Props {
   log: AuditLogEntry[];
@@ -163,19 +165,28 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
   };
 
   const exportScope = { user, target, q, source };
+  const exportJsonName = buildExportFilename({ prefix: "audit", format: exportFormat, ext: "json", from, to, scope: exportScope });
+  const exportCsvName = buildExportFilename({ prefix: "audit", format: exportFormat, ext: "csv", from, to, scope: exportScope });
   const exportJson = () => {
     const data = filtered.map(toExportShape);
-    dl(buildExportFilename({ prefix: "audit", format: exportFormat, ext: "json", from, to, scope: exportScope }),
-       JSON.stringify(data, null, 2), "application/json");
+    dl(exportJsonName, JSON.stringify(data, null, 2), "application/json");
   };
   const exportCsv = () => {
     const data = filtered.map(toExportShape);
     if (data.length === 0) return;
     const headers = Object.keys(data[0]);
     const lines = [headers.join(","), ...data.map((row) => headers.map((h) => csvEsc((row as any)[h])).join(","))];
-    dl(buildExportFilename({ prefix: "audit", format: exportFormat, ext: "csv", from, to, scope: exportScope }),
-       lines.join("\n"), "text/csv");
+    dl(exportCsvName, lines.join("\n"), "text/csv");
   };
+
+  // Severity heuristic for audit entries (used in export preview summary).
+  const auditSeverity = (l: AuditLogEntry): Severity => {
+    const a = `${l.action} ${l.target}`.toLowerCase();
+    if (/delete|hapus|clear|overwrite|reset|drop/.test(a)) return "critical";
+    if (/update|edit|import|sync|promote|deploy|rollback/.test(a)) return "high";
+    return "warning";
+  };
+  const [exportPreviewOpen, setExportPreviewOpen] = useState(false);
 
   // Shared parser used by file imports and the one-click paste validator.
   const parseRows = (txt: string, kind: "json" | "csv"): PreviewRow<AuditLogEntry>[] => {
@@ -266,15 +277,10 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
               </button>
             </>
           )}
-          <button onClick={exportJson} disabled={filtered.length === 0}
-            title={`Export ${filtered.length} entri (${exportFormat})`}
-            className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg border border-border hover:bg-muted text-muted-foreground disabled:opacity-50">
-            <Download size={12}/> JSON ({filtered.length})
-          </button>
-          <button onClick={exportCsv} disabled={filtered.length === 0}
-            title={`Export ${filtered.length} entri (${exportFormat})`}
-            className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg border border-border hover:bg-muted text-muted-foreground disabled:opacity-50">
-            <Download size={12}/> CSV ({filtered.length})
+          <button onClick={() => setExportPreviewOpen(true)} disabled={filtered.length === 0}
+            title={`Preview ringkasan ${filtered.length} entri sebelum download`}
+            className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg border border-primary text-primary hover:bg-primary/10 disabled:opacity-50">
+            <Eye size={12}/> Preview & Export ({filtered.length})
           </button>
           {log.length > 0 && (
             <button onClick={() => { if (confirm("Hapus seluruh log?")) onClear(); }}
@@ -383,6 +389,20 @@ export default function AuditTrailTab({ log, onClear, onImport }: Props) {
           { key: "target", label: "Target" },
           { key: "at", label: "At" },
         ]}
+      />
+
+      <ExportPreviewDialog<AuditLogEntry>
+        open={exportPreviewOpen}
+        onClose={() => setExportPreviewOpen(false)}
+        title="Audit Trail Export"
+        items={filtered}
+        getSource={(l) => deriveSource(l)}
+        getSeverity={(l) => auditSeverity(l)}
+        scope={{ user, target, source, q, from, to, format: exportFormat }}
+        format={exportFormat}
+        filename={{ json: exportJsonName, csv: exportCsvName }}
+        onDownloadJson={exportJson}
+        onDownloadCsv={exportCsv}
       />
     </div>
   );
