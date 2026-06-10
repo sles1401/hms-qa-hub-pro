@@ -1,9 +1,11 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { History, Trash2, Download, Search, Upload, AlertCircle, Bookmark, X } from "lucide-react";
+import { History, Trash2, Download, Search, Upload, AlertCircle, Bookmark, X, Eye } from "lucide-react";
 import { type AuditLogEntry, type AuditSource } from "@/lib/store";
 import ImportPreviewDialog, { type PreviewRow } from "@/components/ImportPreviewDialog";
+import ExportPreviewDialog from "@/components/ExportPreviewDialog";
 import { loadPresets, addPreset, deletePreset, type FilterPreset } from "@/lib/savedFilters";
 import { buildExportFilename } from "@/lib/exportFilename";
+import type { Severity } from "@/lib/adminSettings";
 
 interface Props {
   log: AuditLogEntry[];
